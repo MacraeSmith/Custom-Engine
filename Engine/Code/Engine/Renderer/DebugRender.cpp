@@ -2,13 +2,23 @@
 #include "Engine/Core/EngineCommon.hpp"
 #include "Engine/Core/Clock.hpp"
 #include "Engine/Core/Timer.hpp"
-#include "Engine/Renderer/RendererDX11.hpp"
 #include "Engine/Renderer/Camera.hpp"
 #include "Engine/Core/VertexUtils.hpp"
 #include "Engine/Renderer/BitmapFont.hpp"
 #include "Engine/Math/MathUtils.hpp"
+#include "Engine/Core/DevConsole.hpp"
+#include "Engine/Core/Time.hpp"
 #include <vector>
 #include <queue>
+#include <mutex>
+
+
+#ifdef RENDERER_DX12
+#include "Engine/Renderer/RendererDX12.hpp"
+#else
+#include "Engine/Renderer/RendererDX11.hpp"
+#endif 
+
 
 DebugRenderConfig s_debugRenderConfig;
 
@@ -44,6 +54,7 @@ std::vector<DebugScreenObject> s_debugScreenObjects;
 std::vector<DebugScreenObject> s_messageObjects;
 bool s_isVisible = true;
 bool s_stackMessages = true;
+static std::mutex s_debugRenderMutex;
 
 void DebugRenderSystemStartup(DebugRenderConfig const& config)
 {
@@ -78,6 +89,7 @@ void DebugRenderSetHidden()
 
 void DebugRenderClear()
 {
+	std::scoped_lock lock(s_debugRenderMutex);
 	s_debugObjects.clear();
 	s_debugScreenObjects.clear();
 	s_messageObjects.clear();
@@ -85,58 +97,80 @@ void DebugRenderClear()
 
 void DebugRenderStackMessages(bool stack)
 {
+	std::scoped_lock lock(s_debugRenderMutex);
 	s_stackMessages = stack;
 }
 
 void DebugRenderBeginFrame()
 {
-	for (int objectNum = 0; objectNum < (int)s_debugObjects.size(); ++objectNum)
 	{
-		DebugObject& object = s_debugObjects[objectNum];
-
-		if (object.m_timer.Tick() || object.m_duration == 0.f)
+		std::scoped_lock lock(s_debugRenderMutex);
+		for (int objectNum = 0; objectNum < (int)s_debugObjects.size(); ++objectNum)
 		{
-			s_debugObjects.erase(s_debugObjects.begin() + objectNum);
-			objectNum--;
+			DebugObject& object = s_debugObjects[objectNum];
+
+			if (object.m_timer.Tick() || object.m_duration == 0.f)
+			{
+				s_debugObjects.erase(s_debugObjects.begin() + objectNum);
+				objectNum--;
+			}
 		}
 	}
 
-	for (int screenObjectNum = 0; screenObjectNum < (int)s_debugScreenObjects.size(); ++screenObjectNum)
 	{
-		DebugScreenObject& screenObject = s_debugScreenObjects[screenObjectNum];
-
-		if (screenObject.m_timer.Tick() || screenObject.m_duration == 0.f)
+		std::scoped_lock lock(s_debugRenderMutex);
+		for (int screenObjectNum = 0; screenObjectNum < (int)s_debugScreenObjects.size(); ++screenObjectNum)
 		{
-			s_debugScreenObjects.erase(s_debugScreenObjects.begin() + screenObjectNum);
-			screenObjectNum--;
+			DebugScreenObject& screenObject = s_debugScreenObjects[screenObjectNum];
+
+			if (screenObject.m_timer.Tick() || screenObject.m_duration == 0.f)
+			{
+				s_debugScreenObjects.erase(s_debugScreenObjects.begin() + screenObjectNum);
+				screenObjectNum--;
+			}
 		}
 	}
 
-	for (int messageObjectNum = 0; messageObjectNum < (int)s_messageObjects.size(); ++messageObjectNum)
+	
 	{
-		DebugScreenObject& messageObject = s_messageObjects[messageObjectNum];
-		if (messageObject.m_timer.Tick() || messageObject.m_duration == 0.f)
+		std::scoped_lock lock(s_debugRenderMutex);
+		for (int messageObjectNum = 0; messageObjectNum < (int)s_messageObjects.size(); ++messageObjectNum)
 		{
-			s_messageObjects.erase(s_messageObjects.begin() + messageObjectNum);
-			messageObjectNum--;
+			DebugScreenObject& messageObject = s_messageObjects[messageObjectNum];
+			if (messageObject.m_timer.Tick() || messageObject.m_duration == 0.f)
+			{
+				s_messageObjects.erase(s_messageObjects.begin() + messageObjectNum);
+				messageObjectNum--;
+			}
 		}
 	}
+	
+
 }
 
 void DebugRenderEndFrame()
 {
 }
 
+
 void DebugRenderWorld(Camera const& camera)
 {
+	std::scoped_lock lock(s_debugRenderMutex);
 	if (!s_isVisible)
 		return;
 
-	Renderer* renderer = s_debugRenderConfig.m_renderer;
-	RendererDX11* rendererDX11 = dynamic_cast<RendererDX11*>(renderer);
-	GUARANTEE_OR_DIE(rendererDX11, "trying to render without DX11");
-	rendererDX11->BeginCamera(camera);
-	rendererDX11->BeginRendererEvent("DRAW - Debug World Objects");
+#ifdef RENDERER_DX12
+	RendererDX12* renderer = dynamic_cast<RendererDX12*>(s_debugRenderConfig.m_renderer);
+	GUARANTEE_OR_DIE(renderer, "trying to render with incorrect renderer");
+	renderer->BindRootSignature(nullptr);
+#else
+	RendererDX11* renderer = dynamic_cast<RendererDX11*>(s_debugRenderConfig.m_renderer);
+	GUARANTEE_OR_DIE(renderer, "trying to render with incorrect renderer");
+#endif
+
+	renderer->BeginCamera(camera);
+	renderer->BeginRendererEvent("DRAW - Debug World Objects");
+	
 
 	for (int objectNum = 0; objectNum < (int)s_debugObjects.size(); ++objectNum)
 	{
@@ -148,13 +182,13 @@ void DebugRenderWorld(Camera const& camera)
 		switch (object.m_renderMode)
 		{
 		case DebugRenderMode::ALWAYS:
-			
-			rendererDX11->SetDepthMode(DepthMode::DISABLED);
-			rendererDX11->SetBlendMode(BlendMode::ALPHA);
+
+			renderer->SetDepthMode(DepthMode::DISABLED);
+			renderer->SetBlendMode(BlendMode::ALPHA);
 			break;
 		case DebugRenderMode::USE_DEPTH:
-			rendererDX11->SetDepthMode(DepthMode::READ_WRITE_LESS_EQUAL);
-			rendererDX11->SetBlendMode(BlendMode::ALPHA);
+			renderer->SetDepthMode(DepthMode::READ_WRITE_LESS_EQUAL);
+			renderer->SetBlendMode(BlendMode::ALPHA);
 			break;
 
 		case DebugRenderMode::X_RAY:
@@ -169,17 +203,17 @@ void DebugRenderWorld(Camera const& camera)
 				transform = GetBillboardTransform(object.m_billboardType, cameraTransform, objectPos);
 			}
 
-			rendererDX11->SetDepthMode(DepthMode::READ_ONLY_ALWAYS);
-			rendererDX11->SetBlendMode(BlendMode::ALPHA);
-			rendererDX11->SetSamplerMode(SamplerMode::BILINEAR_WRAP);
-			rendererDX11->SetRasterizerMode(object.m_rasterizerMode);
-			rendererDX11->SetModelConstants(transform, transparentColor);
-			rendererDX11->BindShader(nullptr);
-			rendererDX11->BindTexture(nullptr);
-			rendererDX11->DrawVertexArray(object.m_verts);
+			renderer->SetDepthMode(DepthMode::READ_ONLY_ALWAYS);
+			renderer->SetBlendMode(BlendMode::ALPHA);
+			renderer->SetSamplerMode(SamplerMode::BILINEAR_WRAP);
+			renderer->SetRasterizerMode(object.m_rasterizerMode);
+			renderer->SetModelConstants(transform, transparentColor);
+			renderer->BindShader(nullptr);
+			renderer->BindTexture(nullptr);
+			renderer->DrawVertexArray(object.m_verts);
 
-			rendererDX11->SetDepthMode(DepthMode::READ_WRITE_LESS_EQUAL);
-			rendererDX11->SetBlendMode(BlendMode::OPAQUE);
+			renderer->SetDepthMode(DepthMode::READ_WRITE_LESS_EQUAL);
+			renderer->SetBlendMode(BlendMode::OPAQUE);
 			break;
 		default:
 			break;
@@ -193,36 +227,42 @@ void DebugRenderWorld(Camera const& camera)
 			Vec3 objectPos = object.m_transform.GetTranslation3D();
 			transform = GetBillboardTransform(object.m_billboardType, cameraTransform, objectPos);
 		}
-		rendererDX11->SetRasterizerMode(object.m_rasterizerMode);
-		rendererDX11->SetSamplerMode(SamplerMode::BILINEAR_WRAP);
-		rendererDX11->SetModelConstants(transform, color);
-		rendererDX11->BindTexture(nullptr);
+		renderer->SetRasterizerMode(object.m_rasterizerMode);
+		renderer->SetSamplerMode(SamplerMode::BILINEAR_WRAP);
+		renderer->SetModelConstants(transform, color);
+		renderer->BindTexture(nullptr);
 		if (object.m_worldText)
 		{
-			BitmapFont* font = rendererDX11->CreatOrGetBitMapFontFromFile(s_debugRenderConfig.m_fontName.c_str());
-			rendererDX11->BindTexture(&font->GetTexture());
-			rendererDX11->SetSamplerMode(SamplerMode::POINT_CLAMP);
+			BitmapFont* font = renderer->CreateOrGetBitMapFontFromFile(s_debugRenderConfig.m_fontName.c_str());
+			renderer->BindTexture(&font->GetTexture());
+			renderer->SetSamplerMode(SamplerMode::POINT_CLAMP);
 		}
-		rendererDX11->BindShader(nullptr);
-		rendererDX11->DrawVertexArray(object.m_verts);
+		renderer->BindShader(nullptr);
+		renderer->DrawVertexArray(object.m_verts);
 	}
 
-	rendererDX11->EndRendererEvent();
-	rendererDX11->EndCamera(camera);
+	renderer->EndRendererEvent();
+	renderer->EndCamera(camera);
 }
 
 void DebugRenderScreen(Camera const& camera)
 {
+	std::scoped_lock lock(s_debugRenderMutex);
 	if (!s_isVisible)
 		return;
 
-	Renderer* renderer = s_debugRenderConfig.m_renderer;
-	RendererDX11* rendererDX11 = dynamic_cast<RendererDX11*>(renderer);
-	GUARANTEE_OR_DIE(rendererDX11, "trying to render without DX11");
+#ifdef RENDERER_DX12
+	RendererDX12* renderer = dynamic_cast<RendererDX12*>(s_debugRenderConfig.m_renderer);
+	GUARANTEE_OR_DIE(renderer, "trying to render with incorrect renderer");
+	renderer->BindRootSignature(nullptr);
+#else
+	RendererDX11* renderer = dynamic_cast<RendererDX11*>(s_debugRenderConfig.m_renderer);
+	GUARANTEE_OR_DIE(renderer, "trying to render with incorrect renderer");
+#endif
 
-	rendererDX11->BeginCamera(camera);
-	rendererDX11->BeginRendererEvent("DRAW - Debug Screen Objects");
-	BitmapFont* font = rendererDX11->CreatOrGetBitMapFontFromFile(s_debugRenderConfig.m_fontName.c_str());
+	renderer->BeginCamera(camera);
+	renderer->BeginRendererEvent("DRAW - Debug Screen Objects");
+	BitmapFont* font = renderer->CreateOrGetBitMapFontFromFile(s_debugRenderConfig.m_fontName.c_str());
 
 	for (int textNum = 0; textNum < (int)s_debugScreenObjects.size(); ++textNum)
 	{
@@ -233,20 +273,23 @@ void DebugRenderScreen(Camera const& camera)
 			color = Rgba8::ColorLerp(textObject.m_startColor, textObject.m_endColor, textObject.m_timer.GetElapsedFraction());
 		}
 
-		rendererDX11->SetBlendMode(BlendMode::ALPHA);
-		rendererDX11->SetDepthMode(DepthMode::DISABLED);
-		rendererDX11->SetRasterizerMode(RasterizerMode::SOLID_CULL_BACK);
-		rendererDX11->SetSamplerMode(SamplerMode::POINT_CLAMP);
-		rendererDX11->SetModelConstants(Mat44::IDENTITY, color);
-		rendererDX11->BindShader(nullptr);
-		rendererDX11->BindTexture(&font->GetTexture());
-		rendererDX11->DrawVertexArray(textObject.m_verts);
+		renderer->SetBlendMode(BlendMode::ALPHA);
+		renderer->SetDepthMode(DepthMode::DISABLED);
+		renderer->SetRasterizerMode(RasterizerMode::SOLID_CULL_BACK);
+		renderer->SetSamplerMode(SamplerMode::POINT_CLAMP);
+		renderer->SetModelConstants(Mat44::IDENTITY, color);
+		renderer->BindShader(nullptr);
+		renderer->BindTexture(&font->GetTexture());
+		renderer->DrawVertexArray(textObject.m_verts);
 	}
 
 
 	AABB2 cameraBounds = AABB2(camera.GetOrthoBottomLeft(), camera.GetOrthoTopRight());
 	float lineHeight = 0.02f * (cameraBounds.m_maxs.y - cameraBounds.m_mins.y);
-	float lineWidth = 0.15f * (cameraBounds.m_maxs.x - cameraBounds.m_mins.x);
+	float lineWidth = 0.2f * (cameraBounds.m_maxs.x - cameraBounds.m_mins.x);
+	bool activeDevConsole = g_devConsole && g_devConsole->GetMode() != HIDDEN;
+	float bottomOfLines = cameraBounds.m_maxs.y;
+
 	Verts messageVerts;
 	for (int messageNum = 0; messageNum < (int)s_messageObjects.size(); ++messageNum)
 	{
@@ -259,28 +302,56 @@ void DebugRenderScreen(Camera const& camera)
 			color = Rgba8::ColorLerp(messageObject.m_startColor, messageObject.m_endColor, messageObject.m_timer.GetElapsedFraction());
 		}
 
-		std::string text = s_stackMessages ? Stringf("%s (%i)", messageObject.m_text.c_str(), messageObject.m_numInstances) : messageObject.m_text;
+		std::string text;
+		if (messageObject.m_numInstances > 1 && s_stackMessages)
+		{
+			text = Stringf("%s (%i)", messageObject.m_text.c_str(), messageObject.m_numInstances);
+		}
 
-		AABB2 lineBounds = AABB2(cameraBounds.m_mins.x, cameraBounds.m_maxs.y - ((messageNum + 1) * lineHeight), 
+		else
+		{
+			text = messageObject.m_text;
+		}
+
+		AABB2 lineBounds = AABB2(cameraBounds.m_mins.x, cameraBounds.m_maxs.y - ((messageNum + 1) * lineHeight),
 			cameraBounds.m_mins.x + lineWidth, cameraBounds.m_maxs.y - (messageNum * lineHeight));
 		font->AddVertsForTextInBox2D(messageVerts, text, lineBounds, lineHeight, color, 1.f, Vec2(0.f, 0.5f), SHRINK_TO_FIT);
+
+		if (activeDevConsole)
+		{
+			bottomOfLines = lineBounds.m_mins.y;
+		}
 	}
 
-	rendererDX11->SetBlendMode(BlendMode::ALPHA);
-	rendererDX11->SetDepthMode(DepthMode::DISABLED);
-	rendererDX11->SetSamplerMode(SamplerMode::POINT_CLAMP);
-	rendererDX11->SetRasterizerMode(RasterizerMode::SOLID_CULL_BACK);
-	rendererDX11->SetModelConstants(Mat44::IDENTITY, Rgba8::WHITE);
-	rendererDX11->BindTexture(&font->GetTexture());
-	rendererDX11->BindShader(nullptr);
-	rendererDX11->DrawVertexArray(messageVerts);
+	renderer->SetBlendMode(BlendMode::ALPHA);
+	renderer->SetDepthMode(DepthMode::DISABLED);
+	renderer->SetSamplerMode(SamplerMode::POINT_CLAMP);
+	renderer->SetRasterizerMode(RasterizerMode::SOLID_CULL_BACK);
+	renderer->SetModelConstants(Mat44::IDENTITY, Rgba8::WHITE);
+	renderer->BindShader(nullptr);
 
-	rendererDX11->EndRendererEvent();
-	rendererDX11->EndCamera(camera);
+	//Draw background for messages if dev console is active
+	if (activeDevConsole && s_messageObjects.size() > 0)
+	{
+		Verts backGroundVerts;
+		AABB2 backGroundBounds(cameraBounds.m_mins.x, bottomOfLines, cameraBounds.m_mins.x + lineWidth, cameraBounds.m_maxs.y);
+		AddVertsForAABB2D(backGroundVerts, backGroundBounds, Rgba8::GREY);
+
+		renderer->BindTexture(nullptr);
+		renderer->DrawVertexArray(backGroundVerts);
+	}
+
+	renderer->BindTexture(&font->GetTexture());
+	renderer->DrawVertexArray(messageVerts);
+
+	renderer->EndRendererEvent();
+	renderer->EndCamera(camera);
+
 }
 
 void DebugAddWorldPoint(Vec3 const& pos, float radius, float duration, Rgba8 const& startColor, Rgba8 const& endColor, DebugRenderMode mode)
 {
+	std::scoped_lock lock(s_debugRenderMutex);
 	Verts verts;
 	AddVertsForUVSphereZ3D(verts, pos, radius);
 
@@ -298,8 +369,29 @@ void DebugAddWorldPoint(Vec3 const& pos, float radius, float duration, Rgba8 con
 	s_debugObjects.push_back(object);
 }
 
+void DebugAddWorldMarker(Vec3 const& pos, float radius, float duration, Rgba8 const& startColor, Rgba8 const& endColor, DebugRenderMode mode)
+{
+	std::scoped_lock lock(s_debugRenderMutex);
+	Verts verts;
+	AddVertsForUVSphereZ3D(verts, pos, radius, 3, 2);
+
+	DebugObject object;
+	object.m_verts = verts;
+	object.m_duration = duration;
+	object.m_startColor = startColor;
+	object.m_endColor = endColor;
+	object.m_rasterizerMode = RasterizerMode::SOLID_CULL_BACK;
+
+	bool startTimer = duration <= 0.f ? false : true;
+	object.m_timer = Timer(duration, &Clock::GetSystemClock(), startTimer);
+	object.m_renderMode = mode;
+
+	s_debugObjects.push_back(object);
+}
+
 void DebugAddWorldLine(Vec3 const& start, Vec3 const& end, float radius, float duration, Rgba8 const& startColor, Rgba8 const& endColor, DebugRenderMode mode)
 {
+	std::scoped_lock lock(s_debugRenderMutex);
 	Verts verts;
 	AddVertsForCylinder3D(verts, start, end, radius);
 
@@ -318,6 +410,7 @@ void DebugAddWorldLine(Vec3 const& start, Vec3 const& end, float radius, float d
 
 void DebugAddWireCylinder(Vec3 const& base, Vec3 const& top, float radius, float duration, Rgba8 const& startColor, Rgba8 const& endColor, DebugRenderMode mode)
 {
+	std::scoped_lock lock(s_debugRenderMutex);
 	Verts verts;
 	AddVertsForCylinder3D(verts, base, top, radius);
 
@@ -337,6 +430,7 @@ void DebugAddWireCylinder(Vec3 const& base, Vec3 const& top, float radius, float
 
 void DebugAddWorldWireSphere(Vec3 const& center, float radius, float duration, Rgba8 const& startColor, Rgba8 const& endColor, DebugRenderMode mode)
 {
+	std::scoped_lock lock(s_debugRenderMutex);
 	Verts verts;
 	AddVertsForUVSphereZ3D(verts, center, radius);
 
@@ -356,6 +450,7 @@ void DebugAddWorldWireSphere(Vec3 const& center, float radius, float duration, R
 
 void DebugAddWorldArrow(Vec3 const& start, Vec3 const& end, float radius, float duration, Rgba8 const& startColor, Rgba8 const& endColor, DebugRenderMode mode)
 {
+	std::scoped_lock lock(s_debugRenderMutex);
 	Vec3 direction = end - start;
 	float length = direction.GetLength();
 	Verts verts;
@@ -376,8 +471,9 @@ void DebugAddWorldArrow(Vec3 const& start, Vec3 const& end, float radius, float 
 
 void DebugAddWorldText(std::string const& text, Mat44 const& transform, float textHeight, Vec2 const& alignment, float duration, Rgba8 const& startColor, Rgba8 const& endColor, DebugRenderMode mode)
 {
+	std::scoped_lock lock(s_debugRenderMutex);
 	Verts verts;
-	BitmapFont* font = s_debugRenderConfig.m_renderer->CreatOrGetBitMapFontFromFile(s_debugRenderConfig.m_fontName.c_str());
+	BitmapFont* font = s_debugRenderConfig.m_renderer->CreateOrGetBitMapFontFromFile(s_debugRenderConfig.m_fontName.c_str());
 	font->AddVertsForText3DAtOriginXForward(verts, textHeight, text, Rgba8::WHITE, 1.f, alignment);
 
 	DebugObject object;
@@ -399,8 +495,9 @@ void DebugAddWorldText(std::string const& text, Mat44 const& transform, float te
 
 void DebugAddWorldBillboardText(std::string const& text, Mat44 const& transform, float textHeight, Vec2 const& alignment, float duration, Rgba8 const& startColor, Rgba8 const& endColor, DebugRenderMode mode)
 {
+	std::scoped_lock lock(s_debugRenderMutex);
 	Verts verts;
-	BitmapFont* font = s_debugRenderConfig.m_renderer->CreatOrGetBitMapFontFromFile(s_debugRenderConfig.m_fontName.c_str());
+	BitmapFont* font = s_debugRenderConfig.m_renderer->CreateOrGetBitMapFontFromFile(s_debugRenderConfig.m_fontName.c_str());
 	font->AddVertsForText3DAtOriginXForward(verts, textHeight, text, Rgba8::WHITE, 1.f, alignment);
 
 	DebugObject object;
@@ -422,6 +519,7 @@ void DebugAddWorldBillboardText(std::string const& text, Mat44 const& transform,
 
 void DebugAddWorldBasis(const Mat44& transform, float duration, DebugRenderMode mode)
 {
+	std::scoped_lock lock(s_debugRenderMutex);
 	Vec3 start = transform.GetTranslation3D();
 	Vec3 fwrd = transform.GetIBasis3D();
 	Vec3 left = transform.GetJBasis3D();
@@ -445,6 +543,7 @@ void DebugAddWorldBasis(const Mat44& transform, float duration, DebugRenderMode 
 
 void DebugAddWorldQuad(Vec3 const& bottomLeft, Vec3 const& bottomRight, Vec3 const& topRight, Vec3 const& topLeft, float duration, Rgba8 const& startColor, Rgba8 const& endColor, DebugRenderMode mode)
 {
+	std::scoped_lock lock(s_debugRenderMutex);
 	Verts verts;
 	AddVertsForQuad3D(verts, bottomLeft, bottomRight, topRight, topLeft);
 
@@ -462,10 +561,31 @@ void DebugAddWorldQuad(Vec3 const& bottomLeft, Vec3 const& bottomRight, Vec3 con
 	s_debugObjects.push_back(object);
 }
 
+void DebugAddWorldWireFrameQuad(Vec3 const& bottomLeft, Vec3 const& bottomRight, Vec3 const& topRight, Vec3 const& topLeft, float lineThickness, float duration, Rgba8 const& startColor, Rgba8 const& endColor, DebugRenderMode mode)
+{
+	std::scoped_lock lock(s_debugRenderMutex);
+	Verts verts;
+	AddVertsForWireFrameQuad3D(verts, bottomLeft, bottomRight, topRight, topLeft, lineThickness);
+
+	DebugObject object;
+	object.m_verts = verts;
+	object.m_duration = duration;
+	object.m_startColor = startColor;
+	object.m_endColor = endColor;
+	object.m_renderMode = mode;
+	object.m_rasterizerMode = RasterizerMode::SOLID_CULL_NONE;
+
+	bool startTimer = duration <= 0.f ? false : true;
+	object.m_timer = Timer(duration, &Clock::GetSystemClock(), startTimer);
+
+	s_debugObjects.push_back(object);
+}
+
 void DebugAddScreenText(std::string const& text, AABB2 const& bounds, float cellHeight, Vec2 const& alignment, float duration, Rgba8 const& startColor, Rgba8 const& endColor)
 {
+	std::scoped_lock lock(s_debugRenderMutex);
 	Verts verts;
-	BitmapFont* font = s_debugRenderConfig.m_renderer->CreatOrGetBitMapFontFromFile(s_debugRenderConfig.m_fontName.c_str());
+	BitmapFont* font = s_debugRenderConfig.m_renderer->CreateOrGetBitMapFontFromFile(s_debugRenderConfig.m_fontName.c_str());
 	font->AddVertsForTextInBox2D(verts, text, bounds, cellHeight, Rgba8::WHITE, 1.f, alignment, SHRINK_TO_FIT);
 
 	DebugScreenObject screenObject;
@@ -483,6 +603,7 @@ void DebugAddScreenText(std::string const& text, AABB2 const& bounds, float cell
 
 void DebugAddMessage(std::string const& text, float duration, Rgba8 const& startColor, Rgba8 const& endColor)
 {
+	std::scoped_lock lock(s_debugRenderMutex);
 	if (s_stackMessages)
 	{
 		for (DebugScreenObject& messageObject : s_messageObjects)
@@ -493,6 +614,9 @@ void DebugAddMessage(std::string const& text, float duration, Rgba8 const& start
 				messageObject.m_numInstances++;
 				messageObject.m_startColor = startColor;
 				messageObject.m_endColor = endColor;
+				//#TODO: figure out why frame order of timer freezes game when I try to get elapsed fraction in render screen
+				//messageObject.m_timer.SetPeriod(duration);
+				messageObject.m_timer.Restart();
 				return;
 			}
 		}
@@ -538,6 +662,7 @@ bool Command_DebugRenderClear(EventArgs& args)
 
 bool Command_DegbugRenderToggle(EventArgs& args)
 {
+	std::scoped_lock lock(s_debugRenderMutex);
 	UNUSED(args);
 	s_isVisible = !s_isVisible;
 	if (s_isVisible)
@@ -552,13 +677,13 @@ bool Command_DegbugRenderToggle(EventArgs& args)
 
 bool Command_DebugStackMessages(EventArgs& args)
 {
-	if (args.HasKey("True", true))
+	if (args.HasKey("True"))
 	{
 		DebugRenderStackMessages(true);
 		return true;
 	}
 
-	if (args.HasKey("False", true))
+	if (args.HasKey("False"))
 	{
 		DebugRenderStackMessages(false);
 		return true;
@@ -566,4 +691,28 @@ bool Command_DebugStackMessages(EventArgs& args)
 
 	DebugRenderStackMessages(true);
 	return true;
+}
+
+DebugTimeProfiler::DebugTimeProfiler(std::string message, float timeOnScreen, Rgba8 const& color, bool useMilliseconds)
+	:m_message(message)
+	,m_timeOnScreen(timeOnScreen)
+	,m_color(color)
+	,m_useMilliseconds(useMilliseconds)
+{
+	m_startTime = GetCurrentTimeSeconds();
+}
+
+DebugTimeProfiler::~DebugTimeProfiler()
+{
+	double endTime = GetCurrentTimeSeconds();
+	double totalTime = endTime - m_startTime;
+	std::string appendSymbol = "sec";
+	if (m_useMilliseconds)
+	{
+		totalTime *= 1000.0;
+		appendSymbol = "ms";
+	}
+
+	DebugAddMessage(Stringf("%s: %.2f %s", m_message.c_str(), totalTime, appendSymbol.c_str()), m_timeOnScreen, m_color, m_color);
+
 }

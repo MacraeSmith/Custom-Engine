@@ -1,7 +1,9 @@
 #pragma once
 #include "Engine/Math/Vec3.hpp"
+#include <vector>
 struct AABB2;
 struct Vec2;
+class RandomNumberGenerator;
 struct AABB3
 {
 public:
@@ -16,7 +18,8 @@ public:
 	explicit AABB3(Vec3 const& mins, Vec3 const& maxs);
 	explicit AABB3(AABB2 const& xAndYBounds, Vec2 const& zBounds);
 
-	bool IsPointInside(Vec3 const& point) const;
+	bool IsPointOnOrInside(Vec3 const& point) const;
+	bool IsPointInsideBounds(Vec3 const& point) const;
 	Vec3 const GetCenterPos() const;
 	Vec3 const GetDimensions() const;
 	Vec3 const GetNearestPoint(Vec3 const& referencePos) const;
@@ -25,6 +28,8 @@ public:
 	void SetCenter(Vec3 const& newCenter);
 	void SetDimensions(Vec3 const& newDimensions);
 	void StretchToIncludePoint(Vec3 const& point);
+
+	Vec3 GetRandomPointInside(RandomNumberGenerator* rng = nullptr);
 
 };
 

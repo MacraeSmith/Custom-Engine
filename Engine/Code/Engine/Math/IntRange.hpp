@@ -1,4 +1,5 @@
 #pragma once
+#include <string>
 struct IntRange
 {
 public:
@@ -15,7 +16,7 @@ public:
 	bool const IsOnRange(int const& number) const;
 	bool const IsWithinRange(int const& number) const;
 	bool const IsOverlapping(IntRange const& range) const;
-
+	std::string GetAsText() const;
 	//Mutators
 	//-----------------------------------------------------------------------------------------------
 	void SetFromText(char const* text);

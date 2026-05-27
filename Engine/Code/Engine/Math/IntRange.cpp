@@ -22,9 +22,14 @@ bool const IntRange::IsOverlapping(IntRange const& range) const
 	return (IsWithinRange(range.m_min) || IsWithinRange(range.m_max));
 }
 
+std::string IntRange::GetAsText() const
+{
+	return Stringf("%i~%i",m_min, m_max);
+}
+
 void IntRange::SetFromText(char const* text)
 {
-	Strings numsFromText = SplitStringOnDelimiter(text, ',');
+	Strings numsFromText = SplitStringOnDelimiter(text, '~');
 	m_min = atoi(numsFromText[0].c_str());
 	m_max = atoi(numsFromText[1].c_str());
 }

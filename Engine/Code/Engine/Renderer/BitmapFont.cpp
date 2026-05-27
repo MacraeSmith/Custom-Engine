@@ -4,24 +4,45 @@
 #include "Engine/Math/MathUtils.hpp"
 #include "Engine/Math/AABB2.hpp"
 #include "Engine/Math/IntVec2.hpp"
-#include "Engine/Renderer/Texture.hpp"
 #include "Engine/Math/FloatRange.hpp"
 #include "Engine/Math/IntRange.hpp"
 #include "Engine/Math/Mat44.hpp"
 
-BitmapFont::BitmapFont(char const* fontFilePathNameWithNoExtension, Texture& fontTexture, IntVec2 const& layout)
-    :m_fontFilePathNameWithNoExtension(fontFilePathNameWithNoExtension)
-    ,m_fontGlyphsSpriteSheet(SpriteSheet(fontTexture, layout))
+#ifdef RENDERER_DX12
+#include "Engine/Renderer/TextureDX12.hpp"
+BitmapFont::BitmapFont(char const* fontFilePathNameWithNoExtension, TextureDX12& fontTexture, IntVec2 const& layout)
+	:m_fontFilePathNameWithNoExtension(fontFilePathNameWithNoExtension)
+	, m_fontGlyphsSpriteSheet(SpriteSheet(fontTexture, layout))
 {
-    //#TODO: test to make sure aspect is actually doing something
-    IntVec2 textureDims = fontTexture.GetDimensions();
-    m_fontDefaultAspect = (float) (textureDims.y) / (float)(textureDims.x);
+	//#TODO: test to make sure aspect is actually doing something
+	IntVec2 textureDims = fontTexture.GetDimensions();
+	m_fontDefaultAspect = (float)(textureDims.y) / (float)(textureDims.x);
+}
+
+TextureDX12& BitmapFont::GetTexture() const
+{
+	return m_fontGlyphsSpriteSheet.GetTexture();
+}
+
+
+#else
+#include "Engine/Renderer/Texture.hpp"
+
+BitmapFont::BitmapFont(char const* fontFilePathNameWithNoExtension, Texture& fontTexture, IntVec2 const& layout)
+	:m_fontFilePathNameWithNoExtension(fontFilePathNameWithNoExtension)
+	, m_fontGlyphsSpriteSheet(SpriteSheet(fontTexture, layout))
+{
+	//#TODO: test to make sure aspect is actually doing something
+	IntVec2 textureDims = fontTexture.GetDimensions();
+	m_fontDefaultAspect = (float)(textureDims.y) / (float)(textureDims.x);
 }
 
 Texture& BitmapFont::GetTexture() const
 {
-    return m_fontGlyphsSpriteSheet.GetTexture();
+	return m_fontGlyphsSpriteSheet.GetTexture();
 }
+#endif // RENDERER_DX12
+
 
 void BitmapFont::AddVertsForText2D(std::vector<Vertex_PCU>& vertexArray, Vec2 const& textMins, float cellHeight, std::string const& text, Rgba8 const& tint, float cellAspectScale)
 {
@@ -71,7 +92,7 @@ float BitmapFont::AddVertsForTextInBox2D(std::vector<Vertex_PCU>& vertexArray, s
         for (int lineNum = 0; lineNum < NUM_LINES; ++lineNum)
         {
             std::string& textOnLine = textLines[lineNum];
-            int numGlyphs = std::min((int) (textOnLine.size()), maxGlyphsToDraw);
+            int numGlyphs = GetMin((int) (textOnLine.size()), maxGlyphsToDraw);
             float lineWidth = GetTextWidth(cellHeight, textOnLine, cellAspectScale);
 
             alignedMins.x = box.m_mins.x + ((boxWidth - lineWidth) * alignment.x);
@@ -112,7 +133,7 @@ float BitmapFont::AddVertsForTextInBox2D(std::vector<Vertex_PCU>& vertexArray, s
         {
             float overrunPercentageX = GetClampedFractionWithinRange(boxWidth, 0.f, longestLineWidth);
             float overrunPercentageY = GetClampedFractionWithinRange(boxHeight, 0.f, (cellHeight * NUM_LINES));
-            correctedCellHeight *= std::min(overrunPercentageX, overrunPercentageY);
+            correctedCellHeight *= GetMin(overrunPercentageX, overrunPercentageY);
         }
 
         //readjust y offset based on new scale
@@ -123,7 +144,7 @@ float BitmapFont::AddVertsForTextInBox2D(std::vector<Vertex_PCU>& vertexArray, s
 		for (int lineNum = 0; lineNum < NUM_LINES; ++lineNum)
 		{
 			std::string& textOnLine = textLines[lineNum];
-			int numGlyphs = std::min((int) (textOnLine.size()), maxGlyphsToDraw);
+			int numGlyphs = GetMin((int) (textOnLine.size()), maxGlyphsToDraw);
 			float lineWidth = GetTextWidth(correctedCellHeight, textOnLine, cellAspectScale);
 
 			alignedMins.x = box.m_mins.x + ((boxWidth - lineWidth) * alignment.x);

@@ -3,8 +3,16 @@
 #include "Engine/Math/Mat44.hpp"
 #include "Engine/Math/EulerAngles.hpp"
 #include "Engine/Math/AABB2.hpp"
+#include "Engine/Math/Plane3D.hpp"
 #pragma once
 struct AABB3;
+struct Frustum
+{
+	Plane3D m_planes[6] = {};
+	Vec3 m_nearPlanePoints[4] = {};
+	Vec3 m_farPlanePoints[4] = {};
+};
+
 class Camera
 {
 public:
@@ -20,6 +28,7 @@ public:
 
 	void SetOrthoView(Vec2 const& bottomLeft, Vec2 const& topRight, float nearZ = 0.f, float farZ = 1.f );
 	void SetOrthoView(AABB3 const& cameraBounds);
+	AABB2 GetOrthoBounds() const;
 	void SetPerspectiveView(float aspect, float fov, float nearZ, float farZ);
 
 	void SetPositionAndOrientation(Vec3 const& pos, EulerAngles const& orientation);
@@ -38,15 +47,24 @@ public:
 
 	Vec2 GetOrthoBottomLeft() const;
 	Vec2 GetOrthoTopRight() const;
-	void Translate2D(Vec2 const& translation);
 
 	Mat44 GetOrthoMatrix() const;
 	Mat44 GetPerspectiveMatrix() const;
 	Mat44 GetProjectionMatrix() const;
 
+	Mat44 GetClipToWorldTransform() const;
+	Mat44 GetWorldToClipTransform() const;
+
 	void SetViewportBounds(AABB2 const& bounds);
 	AABB2 GetViewportBounds() const;
 	Vec2 GetViewportDimensions() const;
+
+	float GetFOV() const {return m_perspectiveFOV;}
+	float GetAspect() const {return m_perspectiveAspect;}
+	float GetPerspectiveNearDistance() const {return m_perspectiveNear;}
+	float GetPerspectiveFarDistance() const {return m_perspectiveFar;}
+	Frustum GetPerspectiveFrustum() const;
+	Frustum GetPerspectiveFrustum(Vec3 const& pos, EulerAngles const& orientation, float fov, float aspect, float nearDistance, float farDistance) const;
 
 protected:
 	Mode m_mode = eMode_Orthograhic;

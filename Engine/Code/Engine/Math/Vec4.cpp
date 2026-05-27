@@ -1,6 +1,7 @@
 #include "Engine/Math/Vec4.hpp"
 #include "Engine/Core/StringUtils.hpp"
 #include "Engine/Core/Rgba8.hpp"
+#include "Engine/Math/MathUtils.hpp"
 
 Vec4::Vec4(const Vec4& copyFrom)
 	:x(copyFrom.x)
@@ -26,6 +27,14 @@ Vec4::Vec4(Rgba8 const& color)
 	,z((float)(color.b))
 	,w((float)(color.a))
 {
+}
+
+std::string Vec4::GetAsText(int numDecimals) const
+{
+	numDecimals = GetClampedInt(numDecimals, 0, 10);
+	char format[64];
+	std::snprintf(format, sizeof(format), "%%.%df, %%.%df, %%.%df, %%.%df", numDecimals, numDecimals, numDecimals, numDecimals);
+	return Stringf(format, x, y, z);
 }
 
 void Vec4::SetFromText(char const* text)

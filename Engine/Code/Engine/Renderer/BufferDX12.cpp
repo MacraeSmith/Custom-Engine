@@ -1,19 +1,20 @@
 #include "Engine/Renderer/BufferDX12.hpp"
 #include "Engine/Core/EngineCommon.hpp"
 
+
 BufferDX12::BufferDX12(RendererDX12 const* renderer, std::string const& name)
 	:ResourceDX12(renderer, name)
 {
 }
 
+
 BufferDX12::~BufferDX12()
 {
 }
 
-BufferDX12::BufferDX12(RendererDX12 const* renderer, D3D12_RESOURCE_DESC const& resourceDesc, size_t numElements, size_t elementsSize, std::string const& name)
+BufferDX12::BufferDX12(RendererDX12 const* renderer, D3D12_RESOURCE_DESC const& resourceDesc, std::string const& name)
 	:ResourceDX12(renderer, resourceDesc, nullptr, name)
 {
-	CreateViews(numElements, elementsSize);
 }
 
 void BufferDX12::CreateViews(size_t numElements, size_t elementSize)

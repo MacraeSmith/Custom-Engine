@@ -15,15 +15,11 @@ public:
 
 	unsigned int GetStride() const;
 	unsigned int GetNumberVerts() const;
+	size_t GetSizeInBytes() const {return m_numVertices * m_stride;}
 
 	virtual void CreateViews(size_t numElements, size_t elementSize) override;
 
 	D3D12_VERTEX_BUFFER_VIEW GetVertexBufferView() const {return m_vertexBufferView;}
-
-	size_t GetNumVertices() const {return m_numVertices;}
-
-	size_t GetVertexStride() const {return m_stride;}
-
 
 	virtual D3D12_CPU_DESCRIPTOR_HANDLE GetShaderResourceView(D3D12_SHADER_RESOURCE_VIEW_DESC const* srvDesc = nullptr) const override;
 	virtual D3D12_CPU_DESCRIPTOR_HANDLE GetUnorderedAccessView(D3D12_UNORDERED_ACCESS_VIEW_DESC const* uavDesc = nullptr) const override;

@@ -68,7 +68,7 @@ unsigned int IndexBuffer::GetSize() const
 	return m_size;
 }
 
-unsigned int IndexBuffer::GetCount() const
+unsigned int IndexBuffer::GetNumIndexes() const
 {
-	return 0;
+	return m_size / m_stride;
 }

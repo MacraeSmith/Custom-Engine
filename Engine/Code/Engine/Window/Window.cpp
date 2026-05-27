@@ -6,6 +6,8 @@
 #include "Engine/Input/InputSystem.hpp"
 #include "Engine/Core/EventSystem.hpp"
 #include "Engine/Math/IntVec2.hpp"
+#include "ThirdParty/imgui/backends/imgui_impl_win32.h"
+#include "Engine/ImGui/ImGuiSystem.hpp"
 
 Window* Window::s_mainWindow = nullptr;
 
@@ -22,6 +24,13 @@ LRESULT CALLBACK WindowsMessageHandlingProcedure(HWND windowHandle, unsigned int
 		input = config.m_inputSystem;
 	}
 
+	if (g_imGuiSystem && g_imGuiSystem->m_isVisible)
+	{
+		extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+		if (ImGui_ImplWin32_WndProcHandler(windowHandle, wmMessageCode, wParam, lParam))
+			return true;
+	}
+
 	switch (wmMessageCode)
 	{
 		// App close requested via "X" button, or right-click "Close Window" on task bar, or "Close" from system menu, or Alt-F4
@@ -34,7 +43,7 @@ LRESULT CALLBACK WindowsMessageHandlingProcedure(HWND windowHandle, unsigned int
 		case WM_CHAR:
 		{
 			EventArgs args;
-			args.SetValue("KeyCode", Stringf("%d", (unsigned char)wParam), true);
+			args.SetValue("KeyCode",(unsigned char)wParam);
 			FireEvent("CharPressed", args);
 			return 0;
 		}
@@ -42,8 +51,14 @@ LRESULT CALLBACK WindowsMessageHandlingProcedure(HWND windowHandle, unsigned int
 		// Raw physical keyboard "key-was-just-depressed" event (case-insensitive, not translated)
 		case WM_KEYDOWN:
 		{
+			if (((GetKeyState(VK_CONTROL) & 0x8000) != 0) && (wParam == 'V'))
+			{
+				FireEvent("PasteRequested");
+				return 0;
+			}
+
 			EventArgs args;
-			args.SetValue("KeyCode", Stringf("%d", (unsigned char)wParam), true);
+			args.SetValue("KeyCode", (unsigned char)wParam);
 			FireEvent("KeyPressed", args);
 			
 			return 0;
@@ -53,7 +68,7 @@ LRESULT CALLBACK WindowsMessageHandlingProcedure(HWND windowHandle, unsigned int
 		case WM_KEYUP:
 		{
 			EventArgs args;
-			args.SetValue("KeyCode", Stringf("%d", (unsigned char)wParam), true);
+			args.SetValue("KeyCode", (unsigned char)wParam);
 			FireEvent("KeyReleased", args);
 			
 			return 0;
@@ -62,7 +77,7 @@ LRESULT CALLBACK WindowsMessageHandlingProcedure(HWND windowHandle, unsigned int
 		case WM_LBUTTONDOWN:
 		{
 			EventArgs args;
-			args.SetValue("KeyCode", Stringf("%d", KEYCODE_LEFT_MOUSE_BUTTON), true);
+			args.SetValue("KeyCode", KEYCODE_LEFT_MOUSE_BUTTON);
 			FireEvent("KeyPressed", args);
 			
 			return 0;
@@ -71,7 +86,7 @@ LRESULT CALLBACK WindowsMessageHandlingProcedure(HWND windowHandle, unsigned int
 		case WM_LBUTTONUP:
 		{
 			EventArgs args;
-			args.SetValue("KeyCode", Stringf("%d", KEYCODE_LEFT_MOUSE_BUTTON), true);
+			args.SetValue("KeyCode", KEYCODE_LEFT_MOUSE_BUTTON);
 			FireEvent("KeyReleased", args);
 			
 			return 0;
@@ -80,7 +95,7 @@ LRESULT CALLBACK WindowsMessageHandlingProcedure(HWND windowHandle, unsigned int
 		case WM_RBUTTONDOWN:
 		{
 			EventArgs args;
-			args.SetValue("KeyCode", Stringf("%d", KEYCODE_RIGHT_MOUSE_BUTTON), true);
+			args.SetValue("KeyCode", KEYCODE_RIGHT_MOUSE_BUTTON);
 			FireEvent("KeyPressed", args);
 			
 			return 0;
@@ -89,7 +104,7 @@ LRESULT CALLBACK WindowsMessageHandlingProcedure(HWND windowHandle, unsigned int
 		case WM_RBUTTONUP:
 		{
 			EventArgs args;
-			args.SetValue("KeyCode", Stringf("%d", KEYCODE_RIGHT_MOUSE_BUTTON), true);
+			args.SetValue("KeyCode", KEYCODE_RIGHT_MOUSE_BUTTON);
 			FireEvent("KeyReleased", args);
 			
 			return 0;
@@ -98,7 +113,7 @@ LRESULT CALLBACK WindowsMessageHandlingProcedure(HWND windowHandle, unsigned int
 		case WM_MOUSEWHEEL:
 		{
 			EventArgs args;
-			args.SetValue("MouseWheelDelta", Stringf("%d", GET_WHEEL_DELTA_WPARAM(wParam)),true);
+			args.SetValue("MouseWheelDelta", (float)GET_WHEEL_DELTA_WPARAM(wParam));
 			FireEvent("MouseWheelScrolled", args);
 		}
 	}
@@ -142,6 +157,19 @@ void* const& Window::GetDisplayContext() const
 	return m_displayContext;
 }
 
+void Window::SetMouseToCenter()
+{
+	HWND hwnd = (HWND)Window::s_mainWindow->GetHwnd();
+	RECT clientRect;
+	POINT centerPos;
+	GetClientRect(hwnd, &clientRect);
+	centerPos.x = (long)((clientRect.right - clientRect.left) * 0.5f);
+	centerPos.y = (long)((clientRect.bottom - clientRect.top) * 0.5f);
+
+	ClientToScreen(hwnd, &centerPos);
+	SetCursorPos(centerPos.x, centerPos.y);
+}
+
 Vec2 Window::GetNormalizedMouseUV() const
 {
 	HWND windowHandle = static_cast<HWND>(m_windowHandle);
@@ -150,10 +178,7 @@ Vec2 Window::GetNormalizedMouseUV() const
 	::GetCursorPos(&cursorCoords); //windows screen coords (0,0) is top left
 	::ScreenToClient(windowHandle, &cursorCoords); //Get relative to this window's client area
 	::GetClientRect(windowHandle, &clientRect); //dimensions of client area (0,0 to width,height)
-	float cursorX = 
-		
-		
-		(cursorCoords.x) / (float)(clientRect.right);
+	float cursorX = (cursorCoords.x) / (float)(clientRect.right);
 	float cursorY = (float)(cursorCoords.y) / (float)(clientRect.bottom);
 	return Vec2(cursorX, 1.f - cursorY); //flip Y so that we have (0,0) at bottom left
 }
@@ -168,10 +193,43 @@ IntVec2 Window::GetClientDimensions() const
 	return m_clientDimensions;
 }
 
+float Window::GetClientAspect() const
+{
+	return (float)(m_clientDimensions.x) / (float)(m_clientDimensions.y);;
+}
+
 bool Window::IsWindowActive() const
 {
 	HWND activeWindow = ::GetActiveWindow();
 	return activeWindow == m_windowHandle;
+}
+
+std::string Window::GetClipboardText()
+{
+	if (OpenClipboard(nullptr) == FALSE)
+	{
+		return "";
+	}
+
+	HANDLE clipboardDataHandle = GetClipboardData(CF_TEXT);
+	if (clipboardDataHandle == nullptr)
+	{
+		CloseClipboard();
+		return "";
+	}
+
+	char* clipboardTextPointer = static_cast<char*>(GlobalLock(clipboardDataHandle));
+	if (clipboardTextPointer == nullptr)
+	{
+		CloseClipboard();
+		return "";
+	}
+
+	std::string clipboardText = clipboardTextPointer;
+
+	GlobalUnlock(clipboardDataHandle);
+	CloseClipboard();
+	return clipboardText;
 }
 
 void Window::RunMessagePump()
@@ -208,8 +266,7 @@ void Window::CreateOSWindow()
 	windowClassDescription.lpszClassName = TEXT("Simple Window Class");
 	RegisterClassEx(&windowClassDescription);
 
-	// #SD1ToDo: Add support for fullscreen mode (requires different window style flags than windowed mode)
-	DWORD const windowStyleFlags = WS_CAPTION | WS_BORDER | WS_SYSMENU | WS_OVERLAPPED;
+	DWORD const windowStyleFlags = m_config.m_fullScreen ? WS_POPUP : WS_CAPTION | WS_BORDER | WS_SYSMENU | WS_OVERLAPPED;
 	DWORD const windowStyleExFlags = WS_EX_APPWINDOW;
 
 	// Get desktop rect, dimensions, aspect
@@ -221,36 +278,52 @@ void Window::CreateOSWindow()
 	float desktopAspect = desktopWidth / desktopHeight;
 
 	// Calculate maximum client size (as some % of desktop size)
-	constexpr float maxClientFractionOfDesktop = 0.90f;
-	float clientWidth = desktopWidth * maxClientFractionOfDesktop;
+	const float maxClientFractionOfDesktop = IsFullScreen() ? 1.f : m_config.m_windowScale;
+	float clientWidth = desktopWidth * maxClientFractionOfDesktop; 
 	float clientHeight = desktopHeight * maxClientFractionOfDesktop;
-	
-	if (clientAspect > desktopAspect)
+	if (!IsFullScreen())
 	{
-		// Client window has a wider aspect than desktop; shrink client height to match its width
-		clientHeight = clientWidth / clientAspect;
-	}
-	else
-	{
-		// Client window has a taller aspect than desktop; shrink client width to match its height
-		clientWidth = clientHeight * clientAspect;
+		if (clientAspect > desktopAspect)
+		{
+			// Client window has a wider aspect than desktop; shrink client height to match its width
+			clientHeight = clientWidth / clientAspect;
+		}
+		else
+		{
+			// Client window has a taller aspect than desktop; shrink client width to match its height
+			clientWidth = clientHeight * clientAspect;
+		}
+
+		m_clientDimensions = IntVec2((int)clientWidth, (int)clientHeight);
 	}
 
+	else
+	{
+		m_clientDimensions = IntVec2((int)desktopWidth, (int)desktopHeight);
+	}
+
+	RECT clientRect;
 	// Calculate client rect bounds by centering the client area
 	float clientMarginX = 0.5f * (desktopWidth - clientWidth);
 	float clientMarginY = 0.5f * (desktopHeight - clientHeight);
-	RECT clientRect;
 	clientRect.left = (int)clientMarginX;
 	clientRect.right = clientRect.left + (int)clientWidth;
 	clientRect.top = (int)clientMarginY;
 	clientRect.bottom = clientRect.top + (int)clientHeight;
 
-	//#TODO: Confirm that this is the right thing for client dimensions, should it include margin?
-	m_clientDimensions = IntVec2((int)clientWidth, (int)clientHeight);
-
 	// Calculate the outer dimensions of the physical window, including frame et. al.
 	RECT windowRect = clientRect;
+
+	if (IsFullScreen())
+	{
+		windowRect.left = 0;
+		windowRect.top = 0;
+		windowRect.right = (int)desktopWidth;
+		windowRect.bottom = (int)desktopHeight;
+	}
+
 	AdjustWindowRectEx(&windowRect, windowStyleFlags, FALSE, windowStyleExFlags);
+
 
 	WCHAR windowTitle[1024];
 	MultiByteToWideChar(GetACP(), 0, m_config.m_windowTitle.c_str(), -1, windowTitle, sizeof(windowTitle) / sizeof(windowTitle[0]));
@@ -267,6 +340,12 @@ void Window::CreateOSWindow()
 		NULL,
 		(HINSTANCE)applicationInstanceHandle,
 		NULL);
+
+	if (m_windowHandle == NULL) 
+	{
+		DWORD error = GetLastError();
+		ERROR_AND_DIE(Stringf("CreateWindowEx failed to create the window. ErrorCode: %s", std::to_string(error).c_str()));
+	}
 
 	ShowWindow(static_cast<HWND>(m_windowHandle), SW_SHOW);
 	SetForegroundWindow(static_cast<HWND>(m_windowHandle));

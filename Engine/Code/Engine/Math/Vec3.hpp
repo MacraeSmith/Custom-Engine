@@ -1,6 +1,11 @@
 #pragma once
+#include<string>
+#include <vector>
 struct EulerAngles;
 struct Vec2;
+struct IntVec3;
+class RandomNumberGenerator;
+
 struct Vec3
 {
 public: // NOTE: this is one of the few cases where we break both the "m_" naming rule AND the avoid-public-members rule
@@ -23,6 +28,7 @@ public: // NOTE: this is one of the few cases where we break both the "m_" namin
 
 	static Vec3 const MakeFromPolarRadians(float yawRadians, float pitchRadians, float length = 1.f);
 	static Vec3 const MakeFromPolarDegrees(float yawDegrees, float pitchDegrees, float length = 1.f);
+	static std::vector<Vec3> const GetPositionInCircleAround(Vec3 const& centerPoint, Vec3 const& normal, float radius, int numPositionsToGet);
 
 	//Accessors (const methods)
 	//-----------------------------------------------------------------------------------------------
@@ -43,9 +49,12 @@ public: // NOTE: this is one of the few cases where we break both the "m_" namin
 	Vec3 const GetNormalized() const;
 	Vec2 const GetXY() const;
 
+	std::string GetAsText(int numDecimals = 2) const;
+
+
 	//Mutators (non-const methods)
 	//-----------------------------------------------------------------------------------------------
-	void SetFromText(char const* text);
+	void SetFromText(char const* text, char delimiterToSplitOn = ',');
 	void SetLength(float newLength);
 	void ClampLength(float maxLength);
 	void ClampLength(float minLength, float maxLength); // clamp with max and min
@@ -59,6 +68,8 @@ public:
 	Vec3(const Vec3& copyFrom);							// copy constructor (from another vec3)
 	explicit Vec3(float initialX, float initialY, float initialZ);		// explicit constructor (from x, y, z)
 	explicit Vec3(Vec2 const& initialXY, float initialZ);
+	explicit Vec3(int initialX, int initialY, int initialZ);
+	explicit Vec3(IntVec3 const& copyFrom);
 
 	// Operators (const)
 	//-----------------------------------------------------------------------------------------------

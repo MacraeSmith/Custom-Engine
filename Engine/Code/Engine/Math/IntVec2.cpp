@@ -12,6 +12,27 @@ IntVec2 const IntVec2::NORTH = IntVec2(0, 1);
 IntVec2 const IntVec2::EAST = IntVec2(1, 0);
 IntVec2 const IntVec2::SOUTH = IntVec2(0, -1);
 IntVec2 const IntVec2::WEST = IntVec2(-1, 0);
+int const IntVec2::NUM_DIRECTIONS_N_E_S_W = 4;
+IntVec2 const IntVec2::DIRECTIONS_N_E_S_W[4] =
+{
+	IntVec2::NORTH,
+	IntVec2::EAST,
+	IntVec2::SOUTH,
+	IntVec2::WEST,
+
+};
+int const IntVec2::NUM_DIRECTIONS_N_E_S_W_NE_SE_SW_NW = 8;
+IntVec2 const IntVec2::DIRECTIONS_N_E_S_W_NE_SE_SW_NW[8] =
+{
+	IntVec2::NORTH,
+	IntVec2::EAST,
+	IntVec2::SOUTH,
+	IntVec2::WEST,
+	IntVec2(1,1),
+	IntVec2(1,-1),
+	IntVec2(-1,-1),
+	IntVec2(-1,1),
+};
 
 //-----------------------------------------------------------------------------------------------
 IntVec2::IntVec2( const IntVec2& copy )
@@ -83,6 +104,11 @@ IntVec2 const IntVec2::GetRotatedMinus90Degrees() const
 	rotatedVec.x = rotatedVec.y;
 	rotatedVec.y = -oldX;
 	return rotatedVec;
+}
+
+std::string IntVec2::GetAsText() const
+{
+	return Stringf("%i,%i", x, y);
 }
 
 void IntVec2::SetFromText(char const* text)

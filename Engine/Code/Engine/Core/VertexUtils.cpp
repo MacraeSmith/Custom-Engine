@@ -14,7 +14,39 @@
 #include "Engine/Math/OBB3.hpp"
 #include "Engine/Renderer/DebugRender.hpp"
 #include "Engine/Core/StringUtils.hpp"
+#include "Engine/Core/EngineCommon.hpp"
+#include "Engine/Math/ConvexPoly2.hpp"
 #include <vector>
+
+Verts GetPCUsFromPCUTBNs(VertTBNs const& vertTBNs)
+{
+	Verts verts;
+	verts.reserve(vertTBNs.size());
+
+	for (int i = 0; i < (int)vertTBNs.size(); ++i)
+	{
+		Vertex_PCUTBN vertTBN = vertTBNs[i];
+		Vertex_PCU newVert(vertTBN.m_position, vertTBN.m_color, vertTBN.m_uvTexCoords);
+		verts.push_back(newVert);
+	}
+	return verts;
+}
+
+void AppendVertexPCUs(Verts& out_verts, Verts const& vertsToAdd)
+{
+	for (int i = 0; i < (int)vertsToAdd.size(); ++i)
+	{
+		out_verts.push_back(vertsToAdd[i]);
+	}
+}
+
+void AppendVertexPCUTBNs(VertTBNs out_verts, VertTBNs const& vertsToAdd)
+{
+	for (int i = 0; i < (int)vertsToAdd.size(); ++i)
+	{
+		out_verts.push_back(vertsToAdd[i]);
+	}
+}
 
 void TransformVertexArrayXY3D(int numVerts, Vertex_PCU* verts, float uniformScaleXY, float rotationDegreesAboutZ, Vec2 const& translationXY)
 {
@@ -74,13 +106,19 @@ void TransformVertexArray3D(Verts& verts, Mat44 const& transform, IntRange const
 
 void TransformVertexArray3D(VertTBNs& verts, Mat44 const& transform, IntRange const& vertsToChangeIndexRange)
 {
+	if(transform == Mat44::IDENTITY)
+		return;
+
 	for (int vertIndex = vertsToChangeIndexRange.m_min; vertIndex < vertsToChangeIndexRange.m_max + 1; ++vertIndex)
 	{
 		Vec3& pos = verts[vertIndex].m_position;
 		TransformPosition3D(pos, transform);
 		verts[vertIndex].m_normal = transform.TransformVectorQuantity3D(verts[vertIndex].m_normal);
+		verts[vertIndex].m_normal.Normalize();
 		verts[vertIndex].m_tangent = transform.TransformVectorQuantity3D(verts[vertIndex].m_tangent);
+		verts[vertIndex].m_tangent.Normalize();
 		verts[vertIndex].m_biTangent = transform.TransformVectorQuantity3D(verts[vertIndex].m_biTangent);
+		verts[vertIndex].m_biTangent.Normalize();
 	}
 }
 
@@ -507,6 +545,58 @@ void AddVertsForRing2D(Verts& verts, Vec2 const& center, float radius, float thi
 	}
 }
 
+void AddVertsForConvexPoly2(Verts& verts, ConvexPoly2 const& poly, Rgba8 const& color)
+{
+	std::vector<Vec2> vertexPositions = poly.GetVertexPositions();
+	const int numVertices = (int)vertexPositions.size();
+	const int numTriangles = numVertices - 2;
+
+	const Vec2 a = vertexPositions[0];
+	const Vec2 uvs = Vec2::ZERO;
+
+	for (int i = 0; i < numTriangles; ++i)
+	{
+		Vec2 b = vertexPositions[i + 1];
+		Vec2 c = vertexPositions[i + 2];
+
+		verts.push_back(Vertex_PCU(a, color, uvs));
+		verts.push_back(Vertex_PCU(b, color, uvs));
+		verts.push_back(Vertex_PCU(c, color, uvs));
+	}
+
+}
+
+void AddVertsForConvexPoly2Edge(Verts& verts, ConvexPoly2 const& poly, float thickness, Rgba8 const& color)
+{
+	std::vector<Vec2> vertexPositions = poly.GetVertexPositions();
+	const int numVertices = (int)vertexPositions.size();
+	const float HALF_THICKNESS = thickness * 0.5f;
+
+	for (int i = 0; i < numVertices; ++i)
+	{
+		Vec2 start = vertexPositions[i];
+		int j = i + 1 < numVertices ? i + 1 : 0;
+		Vec2 end = vertexPositions[j];
+
+		Vec2 displacement = end - start;
+		Vec2 stepFwrd = HALF_THICKNESS * displacement.GetNormalized();
+		Vec2 stepLeft = stepFwrd.GetRotated90Degrees();
+
+		Vec2 endLeftVert = end + stepFwrd + stepLeft;
+		Vec2 endRightVert = end + stepFwrd - stepLeft;
+		Vec2 startLeftVert = start - stepFwrd + stepLeft;
+		Vec2 startRightVert = start - stepFwrd - stepLeft;
+
+		verts.push_back(Vertex_PCU(startRightVert, color, Vec2::ONE_TO_ZERO));
+		verts.push_back(Vertex_PCU(endLeftVert, color, Vec2::ZERO_TO_ONE));
+		verts.push_back(Vertex_PCU(startLeftVert, color, Vec2::ZERO));
+		verts.push_back(Vertex_PCU(endLeftVert, color, Vec2::ZERO_TO_ONE));
+		verts.push_back(Vertex_PCU(startRightVert, color, Vec2::ONE_TO_ZERO));
+		verts.push_back(Vertex_PCU(endRightVert, color, Vec2::ONE));
+	}
+}
+
+
 void AddVertsForQuad3D(Verts& verts, Vec3 const& bottomLeft, Vec3 const& bottomRight, Vec3 const& topRight, Vec3 const& topLeft, Rgba8 const& color, AABB2 const& uvs)
 {
 	verts.push_back(Vertex_PCU(bottomLeft, color, uvs.m_mins));
@@ -589,6 +679,61 @@ void AddVertsForRoundedQuad(VertTBNs& verts, Vec3 const& bottomLeft, Vec3 const&
 	verts.push_back(Vertex_PCUTBN(topMiddle, color, tangent, biTangent, middleNormal, Vec2(uvMiddleX, uvs.m_maxs.y)));
 }
 
+void AddVertsForIndexedGerstnerQuadMesh(VertTBNs& verts, IndexList& indexes, IntVec2 const& subDivisionsXY, Vec3 const& bottomLeft, Vec3 const& bottomRight, Vec3 const& topRight, Vec3 const& topLeft, Rgba8 const& color, AABB2 const& uvs)
+{
+	const int startIndex = (int)verts.size();
+
+	UNUSED(topRight);
+	Vec3 rightEdge = bottomRight - bottomLeft;  // tangent direction
+	Vec3 leftEdge = topLeft - bottomLeft;      // bitangent direction
+	Vec3 normal = CrossProduct3D(rightEdge, leftEdge).GetNormalized();
+
+	Vec3 tangent = rightEdge.GetNormalized();
+	Vec3 bitangent = CrossProduct3D(normal, tangent).GetNormalized();
+
+	const int subY = subDivisionsXY.y;
+	const int subX = subDivisionsXY.x;
+
+	// Generate vertices
+	for (int y = 0; y <= subY; ++y)
+	{
+		float ty = float(y) / float(subY);
+		Vec3 rowStart = bottomLeft + leftEdge * ty;
+		float v = Lerp(uvs.m_mins.y, uvs.m_maxs.y, ty);
+
+		for (int x = 0; x <= subX; ++x)
+		{
+			float tx = float(x) / float(subX);
+			Vec3 pos = rowStart + rightEdge * tx;
+			float u = Lerp(uvs.m_mins.x, uvs.m_maxs.x, tx);
+
+			// Store flat quad TBN, Gerstner displacement will happen in shader
+			verts.push_back(Vertex_PCUTBN(pos, color, tangent, bitangent, normal, Vec2(u, v)));
+		}
+	}
+
+	// Generate indices
+	for (int y = 0; y < subY; ++y)
+	{
+		for (int x = 0; x < subX; ++x)
+		{
+			int i0 = startIndex + y * (subX + 1) + x;
+			int i1 = i0 + 1;
+			int i2 = i0 + (subX + 1);
+			int i3 = i2 + 1;
+
+			// Two triangles per cell
+			indexes.push_back(i0);
+			indexes.push_back(i1);
+			indexes.push_back(i3);
+
+			indexes.push_back(i0);
+			indexes.push_back(i3);
+			indexes.push_back(i2);
+		}
+	}
+}
+
 
 void AddVertsForAABB3D(Verts& verts, AABB3 const& bounds, Rgba8 const& color, AABB2 const& uvs)
 {
@@ -610,6 +755,36 @@ void AddVertsForAABB3D(Verts& verts, AABB3 const& bounds, Rgba8* faceColors_XPos
 	AddVertsForQuad3D(verts, Vec3(bounds.m_mins.x, bounds.m_maxs.y, bounds.m_mins.z), Vec3(bounds.m_maxs.x, bounds.m_maxs.y, bounds.m_mins.z), Vec3(bounds.m_maxs.x, bounds.m_mins.y, bounds.m_mins.z), Vec3(bounds.m_mins.x, bounds.m_mins.y, bounds.m_mins.z), faceColors_XPos_XNeg_YPos_YNeg_ZPos_ZNeg[5], uvs);	// -z face
 }
 
+void AddVertsForIndexedAABB3D(Verts& verts, IndexList& indexes, AABB3 const& bounds, Rgba8* faceColors_XPos_XNeg_YPos_YNeg_ZPos_ZNeg, AABB2 const& uvs)
+{
+	AddVertsForIndexedQuad3D(verts, indexes, Vec3(bounds.m_maxs.x, bounds.m_mins.y, bounds.m_mins.z), Vec3(bounds.m_maxs.x, bounds.m_maxs.y, bounds.m_mins.z), Vec3(bounds.m_maxs.x, bounds.m_maxs.y, bounds.m_maxs.z), Vec3(bounds.m_maxs.x, bounds.m_mins.y, bounds.m_maxs.z), faceColors_XPos_XNeg_YPos_YNeg_ZPos_ZNeg[0], uvs);	// x face
+	AddVertsForIndexedQuad3D(verts, indexes, Vec3(bounds.m_mins.x, bounds.m_maxs.y, bounds.m_mins.z), Vec3(bounds.m_mins.x, bounds.m_mins.y, bounds.m_mins.z), Vec3(bounds.m_mins.x, bounds.m_mins.y, bounds.m_maxs.z), Vec3(bounds.m_mins.x, bounds.m_maxs.y, bounds.m_maxs.z), faceColors_XPos_XNeg_YPos_YNeg_ZPos_ZNeg[1], uvs);	// -x face
+	AddVertsForIndexedQuad3D(verts, indexes, Vec3(bounds.m_maxs.x, bounds.m_maxs.y, bounds.m_mins.z), Vec3(bounds.m_mins.x, bounds.m_maxs.y, bounds.m_mins.z), Vec3(bounds.m_mins.x, bounds.m_maxs.y, bounds.m_maxs.z), Vec3(bounds.m_maxs.x, bounds.m_maxs.y, bounds.m_maxs.z), faceColors_XPos_XNeg_YPos_YNeg_ZPos_ZNeg[2], uvs);	// y face
+	AddVertsForIndexedQuad3D(verts, indexes, Vec3(bounds.m_mins.x, bounds.m_mins.y, bounds.m_mins.z), Vec3(bounds.m_maxs.x, bounds.m_mins.y, bounds.m_mins.z), Vec3(bounds.m_maxs.x, bounds.m_mins.y, bounds.m_maxs.z), Vec3(bounds.m_mins.x, bounds.m_mins.y, bounds.m_maxs.z), faceColors_XPos_XNeg_YPos_YNeg_ZPos_ZNeg[3], uvs);	// -y face
+	AddVertsForIndexedQuad3D(verts, indexes, Vec3(bounds.m_mins.x, bounds.m_mins.y, bounds.m_maxs.z), Vec3(bounds.m_maxs.x, bounds.m_mins.y, bounds.m_maxs.z), Vec3(bounds.m_maxs.x, bounds.m_maxs.y, bounds.m_maxs.z), Vec3(bounds.m_mins.x, bounds.m_maxs.y, bounds.m_maxs.z), faceColors_XPos_XNeg_YPos_YNeg_ZPos_ZNeg[4], uvs);	// z face
+	AddVertsForIndexedQuad3D(verts, indexes, Vec3(bounds.m_mins.x, bounds.m_maxs.y, bounds.m_mins.z), Vec3(bounds.m_maxs.x, bounds.m_maxs.y, bounds.m_mins.z), Vec3(bounds.m_maxs.x, bounds.m_mins.y, bounds.m_mins.z), Vec3(bounds.m_mins.x, bounds.m_mins.y, bounds.m_mins.z), faceColors_XPos_XNeg_YPos_YNeg_ZPos_ZNeg[5], uvs);	// -z face
+}
+
+void AddVertsForIndexedAABB3D(Verts& verts, IndexList& indexes, AABB3 const& bounds, Rgba8 const& color, AABB2 const& uvs)
+{
+	AddVertsForIndexedQuad3D(verts, indexes, Vec3(bounds.m_maxs.x, bounds.m_mins.y, bounds.m_mins.z), Vec3(bounds.m_maxs.x, bounds.m_maxs.y, bounds.m_mins.z), Vec3(bounds.m_maxs.x, bounds.m_maxs.y, bounds.m_maxs.z), Vec3(bounds.m_maxs.x, bounds.m_mins.y, bounds.m_maxs.z), color, uvs);	// x face
+	AddVertsForIndexedQuad3D(verts, indexes, Vec3(bounds.m_mins.x, bounds.m_maxs.y, bounds.m_mins.z), Vec3(bounds.m_mins.x, bounds.m_mins.y, bounds.m_mins.z), Vec3(bounds.m_mins.x, bounds.m_mins.y, bounds.m_maxs.z), Vec3(bounds.m_mins.x, bounds.m_maxs.y, bounds.m_maxs.z), color, uvs);	// -x face
+	AddVertsForIndexedQuad3D(verts, indexes, Vec3(bounds.m_maxs.x, bounds.m_maxs.y, bounds.m_mins.z), Vec3(bounds.m_mins.x, bounds.m_maxs.y, bounds.m_mins.z), Vec3(bounds.m_mins.x, bounds.m_maxs.y, bounds.m_maxs.z), Vec3(bounds.m_maxs.x, bounds.m_maxs.y, bounds.m_maxs.z), color, uvs);	// y face
+	AddVertsForIndexedQuad3D(verts, indexes, Vec3(bounds.m_mins.x, bounds.m_mins.y, bounds.m_mins.z), Vec3(bounds.m_maxs.x, bounds.m_mins.y, bounds.m_mins.z), Vec3(bounds.m_maxs.x, bounds.m_mins.y, bounds.m_maxs.z), Vec3(bounds.m_mins.x, bounds.m_mins.y, bounds.m_maxs.z), color, uvs);	// -y face
+	AddVertsForIndexedQuad3D(verts, indexes, Vec3(bounds.m_mins.x, bounds.m_mins.y, bounds.m_maxs.z), Vec3(bounds.m_maxs.x, bounds.m_mins.y, bounds.m_maxs.z), Vec3(bounds.m_maxs.x, bounds.m_maxs.y, bounds.m_maxs.z), Vec3(bounds.m_mins.x, bounds.m_maxs.y, bounds.m_maxs.z), color, uvs);	// z face
+	AddVertsForIndexedQuad3D(verts, indexes, Vec3(bounds.m_mins.x, bounds.m_maxs.y, bounds.m_mins.z), Vec3(bounds.m_maxs.x, bounds.m_maxs.y, bounds.m_mins.z), Vec3(bounds.m_maxs.x, bounds.m_mins.y, bounds.m_mins.z), Vec3(bounds.m_mins.x, bounds.m_mins.y, bounds.m_mins.z), color, uvs);	// -z face
+}
+
+void AddVertsForInvertedIndexedAABB3D(Verts& verts, IndexList& indexes, AABB3 const& bounds, Rgba8 const& color, AABB2 const& uvs)
+{
+	AddVertsForIndexedQuad3D(verts, indexes, Vec3(bounds.m_maxs.x, bounds.m_mins.y, bounds.m_mins.z), Vec3(bounds.m_maxs.x, bounds.m_mins.y, bounds.m_maxs.z), Vec3(bounds.m_maxs.x, bounds.m_maxs.y, bounds.m_maxs.z), Vec3(bounds.m_maxs.x, bounds.m_maxs.y, bounds.m_mins.z), color, uvs);
+	AddVertsForIndexedQuad3D(verts, indexes, Vec3(bounds.m_mins.x, bounds.m_maxs.y, bounds.m_mins.z), Vec3(bounds.m_mins.x, bounds.m_maxs.y, bounds.m_maxs.z), Vec3(bounds.m_mins.x, bounds.m_mins.y, bounds.m_maxs.z), Vec3(bounds.m_mins.x, bounds.m_mins.y, bounds.m_mins.z), color, uvs);
+	AddVertsForIndexedQuad3D(verts, indexes, Vec3(bounds.m_maxs.x, bounds.m_maxs.y, bounds.m_mins.z), Vec3(bounds.m_maxs.x, bounds.m_maxs.y, bounds.m_maxs.z), Vec3(bounds.m_mins.x, bounds.m_maxs.y, bounds.m_maxs.z), Vec3(bounds.m_mins.x, bounds.m_maxs.y, bounds.m_mins.z), color, uvs);
+	AddVertsForIndexedQuad3D(verts, indexes, Vec3(bounds.m_mins.x, bounds.m_mins.y, bounds.m_mins.z), Vec3(bounds.m_mins.x, bounds.m_mins.y, bounds.m_maxs.z), Vec3(bounds.m_maxs.x, bounds.m_mins.y, bounds.m_maxs.z), Vec3(bounds.m_maxs.x, bounds.m_mins.y, bounds.m_mins.z), color, uvs);
+	AddVertsForIndexedQuad3D(verts, indexes, Vec3(bounds.m_mins.x, bounds.m_mins.y, bounds.m_maxs.z), Vec3(bounds.m_mins.x, bounds.m_maxs.y, bounds.m_maxs.z), Vec3(bounds.m_maxs.x, bounds.m_maxs.y, bounds.m_maxs.z), Vec3(bounds.m_maxs.x, bounds.m_mins.y, bounds.m_maxs.z), color, uvs);
+	AddVertsForIndexedQuad3D(verts, indexes, Vec3(bounds.m_mins.x, bounds.m_maxs.y, bounds.m_mins.z), Vec3(bounds.m_maxs.x, bounds.m_maxs.y, bounds.m_mins.z), Vec3(bounds.m_maxs.x, bounds.m_mins.y, bounds.m_mins.z), Vec3(bounds.m_mins.x, bounds.m_mins.y, bounds.m_mins.z), color, uvs);
+}
+
 void AddVertsForIndexedAABB3D(VertTBNs& verts, std::vector<unsigned int>& indexes, AABB3 const& bounds, Rgba8 const& color, AABB2 const& uvs)
 {
 	AddVertsForIndexedQuad3D(verts, indexes, Vec3(bounds.m_maxs.x, bounds.m_mins.y, bounds.m_mins.z), Vec3(bounds.m_maxs.x, bounds.m_maxs.y, bounds.m_mins.z), Vec3(bounds.m_maxs.x, bounds.m_maxs.y, bounds.m_maxs.z), Vec3(bounds.m_maxs.x, bounds.m_mins.y, bounds.m_maxs.z), color, uvs);	// x face
@@ -618,6 +793,23 @@ void AddVertsForIndexedAABB3D(VertTBNs& verts, std::vector<unsigned int>& indexe
 	AddVertsForIndexedQuad3D(verts, indexes, Vec3(bounds.m_mins.x, bounds.m_mins.y, bounds.m_mins.z), Vec3(bounds.m_maxs.x, bounds.m_mins.y, bounds.m_mins.z), Vec3(bounds.m_maxs.x, bounds.m_mins.y, bounds.m_maxs.z), Vec3(bounds.m_mins.x, bounds.m_mins.y, bounds.m_maxs.z), color, uvs);	// -y face
 	AddVertsForIndexedQuad3D(verts, indexes, Vec3(bounds.m_mins.x, bounds.m_mins.y, bounds.m_maxs.z), Vec3(bounds.m_maxs.x, bounds.m_mins.y, bounds.m_maxs.z), Vec3(bounds.m_maxs.x, bounds.m_maxs.y, bounds.m_maxs.z), Vec3(bounds.m_mins.x, bounds.m_maxs.y, bounds.m_maxs.z), color, uvs);	// z face
 	AddVertsForIndexedQuad3D(verts, indexes, Vec3(bounds.m_mins.x, bounds.m_maxs.y, bounds.m_mins.z), Vec3(bounds.m_maxs.x, bounds.m_maxs.y, bounds.m_mins.z), Vec3(bounds.m_maxs.x, bounds.m_mins.y, bounds.m_mins.z), Vec3(bounds.m_mins.x, bounds.m_mins.y, bounds.m_mins.z), color, uvs);	// -z face
+}
+
+void AddVertsForSkybox(Verts& verts, IndexList& indexes, AABB3 const& bounds, AABB2 const& uvs)
+{
+	Rgba8 color = Rgba8(255, 128, 128); //+X
+	AddVertsForIndexedQuad3D(verts,indexes, Vec3(bounds.m_maxs.x, bounds.m_mins.y, bounds.m_mins.z), Vec3(bounds.m_maxs.x, bounds.m_maxs.y, bounds.m_mins.z), Vec3(bounds.m_maxs.x, bounds.m_maxs.y, bounds.m_maxs.z), Vec3(bounds.m_maxs.x, bounds.m_mins.y, bounds.m_maxs.z), color, uvs);	// x face
+	color = Rgba8(128, 255, 128); //+Y
+	AddVertsForIndexedQuad3D(verts,indexes, Vec3(bounds.m_maxs.x, bounds.m_maxs.y, bounds.m_mins.z), Vec3(bounds.m_mins.x, bounds.m_maxs.y, bounds.m_mins.z), Vec3(bounds.m_mins.x, bounds.m_maxs.y, bounds.m_maxs.z), Vec3(bounds.m_maxs.x, bounds.m_maxs.y, bounds.m_maxs.z), color, uvs);	// y face
+	color = Rgba8(128, 128, 255); //+Z
+	AddVertsForIndexedQuad3D(verts,indexes, Vec3(bounds.m_mins.x, bounds.m_mins.y, bounds.m_maxs.z), Vec3(bounds.m_maxs.x, bounds.m_mins.y, bounds.m_maxs.z), Vec3(bounds.m_maxs.x, bounds.m_maxs.y, bounds.m_maxs.z), Vec3(bounds.m_mins.x, bounds.m_maxs.y, bounds.m_maxs.z), color, uvs);	// z face
+
+	color = Rgba8(0, 128, 128); //-X
+	AddVertsForIndexedQuad3D(verts,indexes, Vec3(bounds.m_mins.x, bounds.m_maxs.y, bounds.m_mins.z), Vec3(bounds.m_mins.x, bounds.m_mins.y, bounds.m_mins.z), Vec3(bounds.m_mins.x, bounds.m_mins.y, bounds.m_maxs.z), Vec3(bounds.m_mins.x, bounds.m_maxs.y, bounds.m_maxs.z), color, uvs);	// -x face
+	color = Rgba8(128, 0, 128); //-Y
+	AddVertsForIndexedQuad3D(verts,indexes, Vec3(bounds.m_mins.x, bounds.m_mins.y, bounds.m_mins.z), Vec3(bounds.m_maxs.x, bounds.m_mins.y, bounds.m_mins.z), Vec3(bounds.m_maxs.x, bounds.m_mins.y, bounds.m_maxs.z), Vec3(bounds.m_mins.x, bounds.m_mins.y, bounds.m_maxs.z), color, uvs);	// -y face
+	color = Rgba8(128, 128, 0); //-Z
+	AddVertsForIndexedQuad3D(verts,indexes, Vec3(bounds.m_mins.x, bounds.m_maxs.y, bounds.m_mins.z), Vec3(bounds.m_maxs.x, bounds.m_maxs.y, bounds.m_mins.z), Vec3(bounds.m_maxs.x, bounds.m_mins.y, bounds.m_mins.z), Vec3(bounds.m_mins.x, bounds.m_mins.y, bounds.m_mins.z), color, uvs);	// -z face
 }
 
 void AddVertsForOBB3D(Verts& verts, OBB3 const& orientedBox, Rgba8 const& color, AABB2 const& uvs)
@@ -798,7 +990,7 @@ void AddVertsForArrow3D(Verts& verts, Vec3 const& start, Vec3 const& direction, 
 {
 	const int START_INDEX = (int)verts.size();
 	const float SLICE_STEP_DEGREES = 360.f / numSlices;
-	const float ARROW_LENGTH = GetClamped(.25f * length, 0.f, .25f);
+	const float ARROW_LENGTH = 0.25f * length;
 	float arrowLengthFraction = GetClampedFractionWithinRange(length, 0.f, 10.f);
 	const float ARROW_THICKNESS = thickness * Lerp(1.5f, 5.f, arrowLengthFraction);
 
@@ -928,7 +1120,7 @@ void AddVertsForUVSphereZ3D(Verts& verts, Vec3 const& center, float radius, int 
 }
 
 
-void AddVertsForIndexedZSphere3D(VertTBNs& verts, std::vector<unsigned int>& indexes, Vec3 const& center, float radius, Rgba8 const& tint, AABB2 const& uvs, int numSlices, int numStacks)
+void AddVertsForIndexedZSphere3D(VertTBNs& verts, IndexList& indexes, Vec3 const& center, float radius, Rgba8 const& tint, AABB2 const& uvs, int numSlices, int numStacks)
 {
 	const int START_INDEX = (int)verts.size();
 
@@ -1055,6 +1247,215 @@ void AddVertsForIndexedZSphere3D(VertTBNs& verts, std::vector<unsigned int>& ind
 	}
 }
 
+void AddVertsForIndexedZSphere3D(Verts& verts, IndexList& indexes, Vec3 const& center, float radius, Rgba8 const& tint, AABB2 const& uvs, int numSlices, int numStacks)
+{
+	const int START_INDEX = (int)verts.size();
+
+	float yawStep = 360.f / (float)numSlices;
+	float pitchStep = 180.f / (float)numStacks;
+	Vec2 uvStep((uvs.m_maxs.x - uvs.m_mins.x) / numSlices, (uvs.m_maxs.y - uvs.m_mins.y) / numStacks);
+
+
+	unsigned int bottomLeftIndex = START_INDEX;
+	unsigned int bottomRightIndex = START_INDEX;
+	unsigned int topLeftIndex = START_INDEX;
+	unsigned int topRightIndex = START_INDEX;
+	std::vector<unsigned int> bottomIndexes;
+	bottomIndexes.reserve(numSlices);
+
+	Vec3 bottomRight;
+	Vec3 topRight;
+	Vec3 topLeft;
+
+	topLeftIndex = (unsigned int)verts.size();
+	bottomIndexes.push_back(topLeftIndex);
+	topLeft = center + Vec3::MakeFromPolarDegrees(0.f, 90.f - pitchStep, radius);
+	verts.push_back(Vertex_PCU(topLeft, tint,  Vec2(0.f, uvs.m_mins.y + uvStep.y)));
+
+	//bottom cap
+	Vec3 bottomPos = center + (Vec3::DOWN * radius);
+	for (int sliceNum = 0; sliceNum < numSlices; ++sliceNum)
+	{
+		float latitude = yawStep * sliceNum;
+		topRight = center + Vec3::MakeFromPolarDegrees(latitude + yawStep, 90.f - pitchStep, radius);
+
+		AABB2 quadUvs = AABB2(Vec2(uvs.m_mins.x + (uvStep.x * sliceNum), uvs.m_mins.y),
+			Vec2(uvs.m_mins.x + (uvStep.x * (sliceNum + 1.f)), uvs.m_mins.y + uvStep.y));
+
+		indexes.push_back((unsigned int)verts.size());
+		float uvXMiddle = quadUvs.m_mins.x + (uvStep.x * 0.5f);
+		verts.push_back(Vertex_PCU(bottomPos, tint,  Vec2(uvXMiddle, 0.f)));
+
+		topRightIndex = (unsigned int)verts.size();
+		bottomIndexes.push_back(topRightIndex);
+		indexes.push_back(topRightIndex);
+		verts.push_back(Vertex_PCU(topRight, tint, Vec2(quadUvs.m_maxs.x, quadUvs.m_maxs.y)));
+
+		indexes.push_back(topLeftIndex);
+		topLeftIndex = topRightIndex;
+		topLeft = topRight;
+	}
+
+	//Middle Stacks + Top Cap
+	for (int stackNum = 1; stackNum < numStacks; ++stackNum)
+	{
+		float longitude = 90.f - (stackNum * pitchStep);
+
+		topLeftIndex = (unsigned int)verts.size();
+		bottomIndexes.push_back(topLeftIndex);
+		topLeft = center + Vec3::MakeFromPolarDegrees(0.f, longitude - pitchStep, radius);
+		verts.push_back(Vertex_PCU(topLeft, tint, Vec2(uvs.m_mins.x, uvs.m_mins.y + (uvStep.y * (stackNum + 1.f)))));
+
+
+		for (int sliceNum = 0; sliceNum < numSlices; ++sliceNum)
+		{
+			float latitude = yawStep * sliceNum;
+			AABB2 quadUvs = AABB2(Vec2(uvs.m_mins.x + (uvStep.x * sliceNum), uvs.m_mins.y + (uvStep.y * stackNum)),
+				Vec2(uvs.m_mins.x + (uvStep.x * (sliceNum + 1.f)), uvs.m_mins.y + (uvStep.y * (stackNum + 1.f))));
+
+			topRight = center + Vec3::MakeFromPolarDegrees(latitude + yawStep, longitude - pitchStep, radius);
+
+			bottomLeftIndex = bottomIndexes[((stackNum - 1) * (numSlices + 1)) + (sliceNum)];
+			bottomRightIndex = bottomIndexes[((stackNum - 1) * (numSlices + 1)) + (sliceNum + 1)];
+
+			//top cap
+			if (stackNum == numStacks - 1)
+			{
+				float uvXMiddle = quadUvs.m_mins.x + (uvStep.x * 0.5f);
+				indexes.push_back(bottomLeftIndex);
+				indexes.push_back(bottomRightIndex);
+
+				topRightIndex = (unsigned int)verts.size();
+				indexes.push_back(topRightIndex);
+				bottomIndexes.push_back(topRightIndex);
+				verts.push_back(Vertex_PCU(topRight, tint, Vec2(uvXMiddle, 1.f)));
+			}
+
+			else
+			{
+				indexes.push_back(bottomLeftIndex);
+				indexes.push_back(bottomRightIndex);
+
+				topRightIndex = (unsigned int)verts.size();
+				indexes.push_back(topRightIndex);
+				bottomIndexes.push_back(topRightIndex);
+				verts.push_back(Vertex_PCU(topRight, tint, quadUvs.m_maxs));
+
+				indexes.push_back(bottomLeftIndex);
+				indexes.push_back(topRightIndex);
+				indexes.push_back(topLeftIndex);
+			}
+
+			topLeftIndex = topRightIndex;
+			topLeft = topRight;
+		}
+	}
+}
+
+void AddVertsForInvertedIndexedZSphere3D(Verts& verts, std::vector<unsigned int>& indexes, Vec3 const& center, float radius, Rgba8 const& tint, AABB2 const& uvs, int numSlices, int numStacks)
+{
+	const int START_INDEX = (int)verts.size();
+
+	float yawStep = 360.f / (float)numSlices;
+	float pitchStep = 180.f / (float)numStacks;
+	Vec2 uvStep((uvs.m_maxs.x - uvs.m_mins.x) / numSlices, (uvs.m_maxs.y - uvs.m_mins.y) / numStacks);
+
+	unsigned int bottomLeftIndex = START_INDEX;
+	unsigned int bottomRightIndex = START_INDEX;
+	unsigned int topLeftIndex = START_INDEX;
+	unsigned int topRightIndex = START_INDEX;
+	std::vector<unsigned int> bottomIndexes;
+	bottomIndexes.reserve(numSlices);
+
+	Vec3 bottomRight;
+	Vec3 topRight;
+	Vec3 topLeft;
+
+	topLeftIndex = (unsigned int)verts.size();
+	bottomIndexes.push_back(topLeftIndex);
+	topLeft = center + Vec3::MakeFromPolarDegrees(0.f, 90.f - pitchStep, radius);
+	verts.push_back(Vertex_PCU(topLeft, tint, Vec2(0.f, uvs.m_mins.y + uvStep.y)));
+
+	//bottom cap
+	Vec3 bottomPos = center + (Vec3::DOWN * radius);
+	for (int sliceNum = 0; sliceNum < numSlices; ++sliceNum)
+	{
+		float latitude = yawStep * sliceNum;
+		topRight = center + Vec3::MakeFromPolarDegrees(latitude + yawStep, 90.f - pitchStep, radius);
+
+		AABB2 quadUvs = AABB2(Vec2(uvs.m_mins.x + (uvStep.x * sliceNum), uvs.m_mins.y),
+			Vec2(uvs.m_mins.x + (uvStep.x * (sliceNum + 1.f)), uvs.m_mins.y + uvStep.y));
+
+		indexes.push_back((unsigned int)verts.size());
+		float uvXMiddle = quadUvs.m_mins.x + (uvStep.x * 0.5f);
+		verts.push_back(Vertex_PCU(bottomPos, tint, Vec2(uvXMiddle, 0.f)));
+
+		topRightIndex = (unsigned int)verts.size();
+		bottomIndexes.push_back(topRightIndex);
+		indexes.push_back(topRightIndex);
+		verts.push_back(Vertex_PCU(topRight, tint, Vec2(quadUvs.m_maxs.x, quadUvs.m_maxs.y)));
+
+		indexes.push_back(topLeftIndex);
+		topLeftIndex = topRightIndex;
+		topLeft = topRight;
+	}
+
+	//Middle Stacks + Top Cap
+	for (int stackNum = 1; stackNum < numStacks; ++stackNum)
+	{
+		float longitude = 90.f - (stackNum * pitchStep);
+
+		topLeftIndex = (unsigned int)verts.size();
+		bottomIndexes.push_back(topLeftIndex);
+		topLeft = center + Vec3::MakeFromPolarDegrees(0.f, longitude - pitchStep, radius);
+		verts.push_back(Vertex_PCU(topLeft, tint, Vec2(uvs.m_mins.x, uvs.m_mins.y + (uvStep.y * (stackNum + 1.f)))));
+
+
+		for (int sliceNum = 0; sliceNum < numSlices; ++sliceNum)
+		{
+			float latitude = yawStep * sliceNum;
+			AABB2 quadUvs = AABB2(Vec2(uvs.m_mins.x + (uvStep.x * sliceNum), uvs.m_mins.y + (uvStep.y * stackNum)),
+				Vec2(uvs.m_mins.x + (uvStep.x * (sliceNum + 1.f)), uvs.m_mins.y + (uvStep.y * (stackNum + 1.f))));
+
+			topRight = center + Vec3::MakeFromPolarDegrees(latitude + yawStep, longitude - pitchStep, radius);
+
+			bottomLeftIndex = bottomIndexes[((stackNum - 1) * (numSlices + 1)) + (sliceNum)];
+			bottomRightIndex = bottomIndexes[((stackNum - 1) * (numSlices + 1)) + (sliceNum + 1)];
+
+			//top cap
+			if (stackNum == numStacks - 1)
+			{
+				float uvXMiddle = quadUvs.m_mins.x + (uvStep.x * 0.5f);
+				indexes.push_back(bottomLeftIndex);
+				indexes.push_back(bottomRightIndex);
+
+				topRightIndex = (unsigned int)verts.size();
+				indexes.push_back(topRightIndex);
+				bottomIndexes.push_back(topRightIndex);
+				verts.push_back(Vertex_PCU(topRight, tint, Vec2(uvXMiddle, 1.f)));
+			}
+
+			else
+			{
+				indexes.push_back(bottomLeftIndex);
+				indexes.push_back(bottomRightIndex);
+
+				topRightIndex = (unsigned int)verts.size();
+				indexes.push_back(topRightIndex);
+				bottomIndexes.push_back(topRightIndex);
+				verts.push_back(Vertex_PCU(topRight, tint, quadUvs.m_maxs));
+
+				indexes.push_back(bottomLeftIndex);
+				indexes.push_back(topRightIndex);
+				indexes.push_back(topLeftIndex);
+			}
+
+			topLeftIndex = topRightIndex;
+			topLeft = topRight;
+		}
+	}
+}
+
 
 void AddVertsForCylinder3D(Verts& verts, Vec3 const& start, Vec3 const& end, float radius, Rgba8 const& tint, AABB2 const& uvs, int numSlices)
 {
@@ -1084,8 +1485,8 @@ void AddVertsForCylinder3D(Verts& verts, Vec3 const& start, Vec3 const& end, flo
 		Vec3 topRight = rightOffset;
 
 		verts.push_back(Vertex_PCU(Vec3::ZERO, tint, Vec2(sliceXuvs.m_min + (0.5f * (sliceXuvs.m_max - sliceXuvs.m_min)), uvs.m_mins.y)));
-		verts.push_back(Vertex_PCU(topRight, tint, Vec2(sliceXuvs.m_max, Y_UV_RANGE_SHAFT.m_min)));
 		verts.push_back(Vertex_PCU(topLeft, tint, Vec2(sliceXuvs.m_min, Y_UV_RANGE_SHAFT.m_min)));
+		verts.push_back(Vertex_PCU(topRight, tint, Vec2(sliceXuvs.m_max, Y_UV_RANGE_SHAFT.m_min)));
 
 		Vec3 bottomLeft = topLeft;
 		Vec3 bottomRight = topRight;
@@ -1096,8 +1497,8 @@ void AddVertsForCylinder3D(Verts& verts, Vec3 const& start, Vec3 const& end, flo
 		AddVertsForQuad3D(verts, bottomLeft, bottomRight, topRight, topLeft, tint, quadUVS);
 
 		verts.push_back(Vertex_PCU(topLeft, tint, Vec2(sliceXuvs.m_min, Y_UV_RANGE_SHAFT.m_max)));
-		verts.push_back(Vertex_PCU(topRight, tint, Vec2(sliceXuvs.m_max, Y_UV_RANGE_SHAFT.m_max)));
 		verts.push_back(Vertex_PCU(X_END, tint, Vec2(sliceXuvs.m_min + (0.5f * (sliceXuvs.m_max - sliceXuvs.m_min)), uvs.m_maxs.y)));
+		verts.push_back(Vertex_PCU(topRight, tint, Vec2(sliceXuvs.m_max, Y_UV_RANGE_SHAFT.m_max)));
 
 		leftOffset = rightOffset;
 	}
@@ -1129,8 +1530,8 @@ void AddVertsForZCylinder3D(Verts& verts, Vec3 const& bottom, float length, floa
 		Vec3 topRight = bottom + rightOffset;
 
 		verts.push_back(Vertex_PCU(bottom, tint, uvCenter));
-		verts.push_back(Vertex_PCU(topRight, tint, uvCenter + Vec2(uvXRadius * CosDegrees(latitudeAfterStep), -uvYRadius * SinDegrees(latitudeAfterStep))));
 		verts.push_back(Vertex_PCU(topLeft, tint, uvCenter + Vec2(uvXRadius * CosDegrees(latitude), -uvYRadius * SinDegrees(latitude))));
+		verts.push_back(Vertex_PCU(topRight, tint, uvCenter + Vec2(uvXRadius * CosDegrees(latitudeAfterStep), -uvYRadius * SinDegrees(latitudeAfterStep))));
 
 		Vec3 bottomLeft = topLeft;
 		Vec3 bottomRight = topRight;
@@ -1141,10 +1542,218 @@ void AddVertsForZCylinder3D(Verts& verts, Vec3 const& bottom, float length, floa
 		AddVertsForQuad3D(verts, bottomLeft, bottomRight, topRight, topLeft, tint, quadUVS);
 
 		verts.push_back(Vertex_PCU(topLeft, tint, uvCenter + Vec2(uvXRadius * CosDegrees(latitude), uvYRadius * SinDegrees(latitude))));
-		verts.push_back(Vertex_PCU(topRight, tint, uvCenter + Vec2(uvXRadius * CosDegrees(latitudeAfterStep), uvYRadius * SinDegrees(latitudeAfterStep))));
 		verts.push_back(Vertex_PCU(top, tint, uvCenter));
+		verts.push_back(Vertex_PCU(topRight, tint, uvCenter + Vec2(uvXRadius * CosDegrees(latitudeAfterStep), uvYRadius * SinDegrees(latitudeAfterStep))));
 
 		leftOffset = rightOffset;
+	}
+}
+
+void AddVertsForIndexedZCylinder3D(Verts& verts, IndexList& indexes, Vec3 const& bottom, float length, float radius, int numSlices, Rgba8 const& tint, AABB2 const& uvs)
+{
+	const int START_INDEX = (int)verts.size();
+
+	const float SLICE_STEP_DEGREES = (360.f / (float)numSlices);
+	const float UV_SLICE_STEP = ((uvs.m_maxs.x - uvs.m_mins.x) / (float)numSlices);
+	const float uvXRadius = (0.5f * (uvs.m_maxs.x - uvs.m_mins.x));
+	const float uvYRadius = (0.5f * (uvs.m_maxs.y - uvs.m_mins.y));
+	const Vec2 uvCenter = Vec2((uvs.m_mins.x + uvXRadius), (uvs.m_mins.y + uvYRadius));
+
+	const Vec3 top = (bottom + (Vec3::UP * length));
+	Vec3 leftVertEdgeOffset = Vec3(radius, 0.f, 0.f);
+
+	// Bottom and top center verts
+	verts.push_back(Vertex_PCU(bottom, tint, uvCenter));
+	verts.push_back(Vertex_PCU(top, tint, uvCenter));
+
+	const unsigned int bottomIndex = (unsigned int)START_INDEX;
+	const unsigned int topIndex = (unsigned int)(START_INDEX + 1);
+
+	unsigned int bottomLeftIndexDown = bottomIndex;
+	unsigned int bottomRightIndexDown = bottomIndex;
+	unsigned int topLeftIndexUp = topIndex;
+	unsigned int topRightIndexUp = topIndex;
+
+	unsigned int bottomLeftIndexSide = bottomIndex;
+	unsigned int bottomRightIndexSide = bottomIndex;
+	unsigned int topLeftIndexSide = topIndex;
+	unsigned int topRightIndexSide = topIndex;
+
+	// Start edge verts
+	const Vec3 edgePosBottom = (bottom + leftVertEdgeOffset);
+	const Vec3 edgePosTop = (top + leftVertEdgeOffset);
+
+	// Bottom cap rim start
+	bottomLeftIndexDown = (unsigned int)verts.size();
+	verts.push_back(Vertex_PCU(edgePosBottom, tint, (uvCenter + Vec2(uvXRadius, 0.f))));
+
+	// Side start (bottom-left)
+	bottomLeftIndexSide = (unsigned int)verts.size();
+	verts.push_back(Vertex_PCU(edgePosBottom, tint, uvs.m_mins));
+
+	// Side start (top-left)
+	topLeftIndexSide = (unsigned int)verts.size();
+	verts.push_back(Vertex_PCU(edgePosTop, tint, Vec2(uvs.m_mins.x, uvs.m_maxs.y)));
+
+	// Top cap rim start (must be on top plane)
+	topLeftIndexUp = (unsigned int)verts.size();
+	verts.push_back(Vertex_PCU(edgePosTop, tint, (uvCenter + Vec2(uvXRadius, 0.f))));
+
+	// Fill slices
+	for (int sliceNum = 0; sliceNum < numSlices; ++sliceNum)
+	{
+		const float latitudeAfterStep = ((float)(sliceNum + 1) * SLICE_STEP_DEGREES);
+		const FloatRange sliceXuvs((uvs.m_mins.x + (UV_SLICE_STEP * (float)sliceNum)), (uvs.m_mins.x + (UV_SLICE_STEP * (float)(sliceNum + 1))));
+
+		const Vec3 rightVertEdgeOffset = Vec3::MakeFromPolarDegrees(latitudeAfterStep, 0.f, radius);
+
+		const Vec3 bottomLeft = (bottom + leftVertEdgeOffset);
+		const Vec3 bottomRight = (bottom + rightVertEdgeOffset);
+		const Vec3 topLeft = (top + leftVertEdgeOffset);
+		const Vec3 topRight = (top + rightVertEdgeOffset);
+
+		// Bottom cap triangle (flipped)
+		indexes.push_back(bottomIndex);
+
+		bottomRightIndexDown = (unsigned int)verts.size();
+		verts.push_back(Vertex_PCU(bottomRight, tint, (uvCenter + Vec2((uvXRadius * CosDegrees(latitudeAfterStep)), (-uvYRadius * SinDegrees(latitudeAfterStep))))));
+		indexes.push_back(bottomRightIndexDown);
+		indexes.push_back(bottomLeftIndexDown);
+
+		// Side quad
+		indexes.push_back(bottomLeftIndexSide);
+
+		bottomRightIndexSide = (unsigned int)verts.size();
+		verts.push_back(Vertex_PCU(bottomRight, tint, Vec2(sliceXuvs.m_max, uvs.m_mins.y)));
+		indexes.push_back(bottomRightIndexSide);
+
+		topRightIndexSide = (unsigned int)verts.size();
+		verts.push_back(Vertex_PCU(topRight, tint, Vec2(sliceXuvs.m_max, uvs.m_maxs.y)));
+		indexes.push_back(topRightIndexSide);
+
+		indexes.push_back(bottomLeftIndexSide);
+		indexes.push_back(topRightIndexSide);
+		indexes.push_back(topLeftIndexSide);
+
+		// Top cap triangle (flipped)
+		indexes.push_back(topIndex);
+
+		topRightIndexUp = (unsigned int)verts.size();
+		verts.push_back(Vertex_PCU(topRight, tint, (uvCenter + Vec2((uvXRadius * CosDegrees(latitudeAfterStep)), (uvYRadius * SinDegrees(latitudeAfterStep))))));
+		indexes.push_back(topLeftIndexUp);
+		indexes.push_back(topRightIndexUp);
+
+		// Advance for next slice
+		leftVertEdgeOffset = rightVertEdgeOffset;
+		bottomLeftIndexDown = bottomRightIndexDown;
+		bottomLeftIndexSide = bottomRightIndexSide;
+		topLeftIndexUp = topRightIndexUp;
+		topLeftIndexSide = topRightIndexSide;
+	}
+}
+
+void AddVertsForToplessIndexedZCylinder3D(Verts& verts, IndexList& indexes, Vec3 const& bottom, float length, float radius, int numSlices, Rgba8 const& tint, AABB2 const& uvs)
+{
+	const int START_INDEX = (int)verts.size();
+
+	const float SLICE_STEP_DEGREES = (360.f / (float)numSlices);
+	const float UV_SLICE_STEP = ((uvs.m_maxs.x - uvs.m_mins.x) / (float)numSlices);
+	const float uvXRadius = (0.5f * (uvs.m_maxs.x - uvs.m_mins.x));
+	const float uvYRadius = (0.5f * (uvs.m_maxs.y - uvs.m_mins.y));
+	const Vec2 uvCenter = Vec2((uvs.m_mins.x + uvXRadius), (uvs.m_mins.y + uvYRadius));
+
+	const Vec3 top = (bottom + (Vec3::UP * length));
+	Vec3 leftVertEdgeOffset = Vec3(radius, 0.f, 0.f);
+
+	// Bottom and top center verts
+	verts.push_back(Vertex_PCU(bottom, tint, uvCenter));
+	verts.push_back(Vertex_PCU(top, tint, uvCenter));
+
+	const unsigned int bottomIndex = (unsigned int)START_INDEX;
+	const unsigned int topIndex = (unsigned int)(START_INDEX + 1);
+
+	unsigned int bottomLeftIndexDown = bottomIndex;
+	unsigned int bottomRightIndexDown = bottomIndex;
+	unsigned int topLeftIndexUp = topIndex;
+	unsigned int topRightIndexUp = topIndex;
+
+	unsigned int bottomLeftIndexSide = bottomIndex;
+	unsigned int bottomRightIndexSide = bottomIndex;
+	unsigned int topLeftIndexSide = topIndex;
+	unsigned int topRightIndexSide = topIndex;
+
+	// Start edge verts
+	const Vec3 edgePosBottom = (bottom + leftVertEdgeOffset);
+	const Vec3 edgePosTop = (top + leftVertEdgeOffset);
+
+	// Bottom cap rim start
+	bottomLeftIndexDown = (unsigned int)verts.size();
+	verts.push_back(Vertex_PCU(edgePosBottom, tint, (uvCenter + Vec2(uvXRadius, 0.f))));
+
+	// Side start (bottom-left)
+	bottomLeftIndexSide = (unsigned int)verts.size();
+	verts.push_back(Vertex_PCU(edgePosBottom, tint, uvs.m_mins));
+
+	// Side start (top-left)
+	topLeftIndexSide = (unsigned int)verts.size();
+	verts.push_back(Vertex_PCU(edgePosTop, tint, Vec2(uvs.m_mins.x, uvs.m_maxs.y)));
+
+	// Top cap rim start (must be on top plane)
+	topLeftIndexUp = (unsigned int)verts.size();
+	verts.push_back(Vertex_PCU(edgePosTop, tint, (uvCenter + Vec2(uvXRadius, 0.f))));
+
+	// Fill slices
+	for (int sliceNum = 0; sliceNum < numSlices; ++sliceNum)
+	{
+		const float latitudeAfterStep = ((float)(sliceNum + 1) * SLICE_STEP_DEGREES);
+		const FloatRange sliceXuvs((uvs.m_mins.x + (UV_SLICE_STEP * (float)sliceNum)), (uvs.m_mins.x + (UV_SLICE_STEP * (float)(sliceNum + 1))));
+
+		const Vec3 rightVertEdgeOffset = Vec3::MakeFromPolarDegrees(latitudeAfterStep, 0.f, radius);
+
+		const Vec3 bottomLeft = (bottom + leftVertEdgeOffset);
+		const Vec3 bottomRight = (bottom + rightVertEdgeOffset);
+		const Vec3 topLeft = (top + leftVertEdgeOffset);
+		const Vec3 topRight = (top + rightVertEdgeOffset);
+
+		// Bottom cap triangle (flipped)
+		indexes.push_back(bottomIndex);
+
+		bottomRightIndexDown = (unsigned int)verts.size();
+		verts.push_back(Vertex_PCU(bottomRight, tint, (uvCenter + Vec2((uvXRadius * CosDegrees(latitudeAfterStep)), (-uvYRadius * SinDegrees(latitudeAfterStep))))));
+		indexes.push_back(bottomRightIndexDown);
+		indexes.push_back(bottomLeftIndexDown);
+
+		// Side quad
+		indexes.push_back(bottomLeftIndexSide);
+
+		bottomRightIndexSide = (unsigned int)verts.size();
+		verts.push_back(Vertex_PCU(bottomRight, tint, Vec2(sliceXuvs.m_max, uvs.m_mins.y)));
+		indexes.push_back(bottomRightIndexSide);
+
+		topRightIndexSide = (unsigned int)verts.size();
+		verts.push_back(Vertex_PCU(topRight, tint, Vec2(sliceXuvs.m_max, uvs.m_maxs.y)));
+		indexes.push_back(topRightIndexSide);
+
+		indexes.push_back(bottomLeftIndexSide);
+		indexes.push_back(topRightIndexSide);
+		indexes.push_back(topLeftIndexSide);
+
+		/*
+		// Top cap triangle (flipped)
+		indexes.push_back(topIndex);
+
+		topRightIndexUp = (unsigned int)verts.size();
+		verts.push_back(Vertex_PCU(topRight, tint, (uvCenter + Vec2((uvXRadius * CosDegrees(latitudeAfterStep)), (uvYRadius * SinDegrees(latitudeAfterStep))))));
+		indexes.push_back(topLeftIndexUp);
+		indexes.push_back(topRightIndexUp);
+		*/
+
+		// Advance for next slice
+		leftVertEdgeOffset = rightVertEdgeOffset;
+		bottomLeftIndexDown = bottomRightIndexDown;
+		bottomLeftIndexSide = bottomRightIndexSide;
+		topLeftIndexUp = topRightIndexUp;
+		topLeftIndexSide = topRightIndexSide;
 	}
 }
 
@@ -1285,6 +1894,181 @@ void AddVertsForIndexedZCylinder3D(VertTBNs& verts, std::vector<unsigned int>& i
 	
 }
 
+void AddVertsForIndexedZCylinder3D(
+	VertTBNs& verts,
+	IndexList& indexes,
+	Vec3 const& bottom,
+	float length,
+	float radius,
+	int numSlices,
+	int numSegments,
+	Rgba8 const& tint,
+	AABB2 const& uvs)
+{
+
+
+	const float sliceStepDegrees = (360.0f / (float)numSlices);
+
+	const float uvWidth = (uvs.m_maxs.x - uvs.m_mins.x);
+	const float uvHeight = (uvs.m_maxs.y - uvs.m_mins.y);
+
+	const float uvXRadius = (0.5f * uvWidth);
+	const float uvYRadius = (0.5f * uvHeight);
+	const Vec2 uvCenter = Vec2((uvs.m_mins.x + uvXRadius), (uvs.m_mins.y + uvYRadius));
+
+	const Vec3 axisUp = Vec3::UP;
+	const Vec3 top = (bottom + (axisUp * length));
+
+	// ------------------------------------------------------------------------
+	// Bottom cap (center + ring)
+	// ------------------------------------------------------------------------
+	const unsigned int bottomCenterIndex = (unsigned int)verts.size();
+	{
+		Vec3 const tangent = Vec3::FORWARD;
+		Vec3 const biTangent = Vec3::RIGHT;
+		Vec3 const normal = Vec3::DOWN;
+		verts.push_back(Vertex_PCUTBN(bottom, tint, tangent, biTangent, normal, uvCenter));
+	}
+
+	const unsigned int bottomRingStartIndex = (unsigned int)verts.size();
+	for (int sliceIndex = 0; sliceIndex < numSlices; ++sliceIndex)
+	{
+		float const angleDegrees = ((float)sliceIndex * sliceStepDegrees);
+		float const cosAngle = CosDegrees(angleDegrees);
+		float const sinAngle = SinDegrees(angleDegrees);
+
+		Vec3 const radialOffset = Vec3((radius * cosAngle), (radius * sinAngle), 0.0f);
+		Vec3 const ringPosition = (bottom + radialOffset);
+
+		Vec2 const ringUV = (uvCenter + Vec2((uvXRadius * cosAngle), (-uvYRadius * sinAngle)));
+
+		Vec3 const tangent = Vec3::FORWARD;
+		Vec3 const biTangent = Vec3::RIGHT;
+		Vec3 const normal = Vec3::DOWN;
+
+		verts.push_back(Vertex_PCUTBN(ringPosition, tint, tangent, biTangent, normal, ringUV));
+	}
+
+	for (int sliceIndex = 0; sliceIndex < numSlices; ++sliceIndex)
+	{
+		int const nextSliceIndex = ((sliceIndex + 1) % numSlices);
+
+		unsigned int const ringIndex0 = (bottomRingStartIndex + (unsigned int)sliceIndex);
+		unsigned int const ringIndex1 = (bottomRingStartIndex + (unsigned int)nextSliceIndex);
+
+		// Winding for bottom facing down
+		indexes.push_back(bottomCenterIndex);
+		indexes.push_back(ringIndex1);
+		indexes.push_back(ringIndex0);
+	}
+
+	// ------------------------------------------------------------------------
+	// Top cap (center + ring)
+	// ------------------------------------------------------------------------
+	const unsigned int topCenterIndex = (unsigned int)verts.size();
+	{
+		Vec3 const tangent = Vec3::FORWARD;
+		Vec3 const biTangent = Vec3::LEFT;
+		Vec3 const normal = Vec3::UP;
+		verts.push_back(Vertex_PCUTBN(top, tint, tangent, biTangent, normal, uvCenter));
+	}
+
+	const unsigned int topRingStartIndex = (unsigned int)verts.size();
+	for (int sliceIndex = 0; sliceIndex < numSlices; ++sliceIndex)
+	{
+		float const angleDegrees = ((float)sliceIndex * sliceStepDegrees);
+		float const cosAngle = CosDegrees(angleDegrees);
+		float const sinAngle = SinDegrees(angleDegrees);
+
+		Vec3 const radialOffset = Vec3((radius * cosAngle), (radius * sinAngle), 0.0f);
+		Vec3 const ringPosition = (top + radialOffset);
+
+		Vec2 const ringUV = (uvCenter + Vec2((uvXRadius * cosAngle), (uvYRadius * sinAngle)));
+
+		Vec3 const tangent = Vec3::FORWARD;
+		Vec3 const biTangent = Vec3::LEFT;
+		Vec3 const normal = Vec3::UP;
+
+		verts.push_back(Vertex_PCUTBN(ringPosition, tint, tangent, biTangent, normal, ringUV));
+	}
+
+	for (int sliceIndex = 0; sliceIndex < numSlices; ++sliceIndex)
+	{
+		int const nextSliceIndex = ((sliceIndex + 1) % numSlices);
+
+		unsigned int const ringIndex0 = (topRingStartIndex + (unsigned int)sliceIndex);
+		unsigned int const ringIndex1 = (topRingStartIndex + (unsigned int)nextSliceIndex);
+
+		// Winding for top facing up
+		indexes.push_back(topCenterIndex);
+		indexes.push_back(ringIndex0);
+		indexes.push_back(ringIndex1);
+	}
+
+	// ------------------------------------------------------------------------
+	// Side surface (numSegments stacks, numSlices slices, with seam duplicate for UVs)
+	// We create (numSegments + 1) rings and (numSlices + 1) verts per ring.
+	// ------------------------------------------------------------------------
+	const unsigned int sideStartIndex = (unsigned int)verts.size();
+
+	for (int segmentIndex = 0; segmentIndex <= numSegments; ++segmentIndex)
+	{
+		float const segmentFraction = ((float)segmentIndex / (float)numSegments);
+		float const segmentHeight = (length * segmentFraction);
+		float const v = (uvs.m_mins.y + (uvHeight * segmentFraction));
+
+		Vec3 const ringBase = (bottom + (axisUp * segmentHeight));
+
+		for (int sliceIndex = 0; sliceIndex <= numSlices; ++sliceIndex)
+		{
+			int const wrappedSliceIndex = (sliceIndex % numSlices);
+
+			float const angleDegrees = ((float)wrappedSliceIndex * sliceStepDegrees);
+			float const cosAngle = CosDegrees(angleDegrees);
+			float const sinAngle = SinDegrees(angleDegrees);
+
+			Vec3 const radialOffset = Vec3((radius * cosAngle), (radius * sinAngle), 0.0f);
+			Vec3 const position = (ringBase + radialOffset);
+
+			Vec3 const normal = radialOffset.GetNormalized();
+
+			// Tangent along increasing slice (around the cylinder)
+			Vec3 const tangent = Vec3((-sinAngle), (cosAngle), 0.0f);
+			Vec3 const biTangent = axisUp;
+
+			float const u = (uvs.m_mins.x + (uvWidth * ((float)sliceIndex / (float)numSlices)));
+			Vec2 const uv = Vec2(u, v);
+
+			verts.push_back(Vertex_PCUTBN(position, tint, tangent, biTangent, normal, uv));
+		}
+	}
+
+	const unsigned int vertsPerRing = (unsigned int)(numSlices + 1);
+
+	for (int segmentIndex = 0; segmentIndex < numSegments; ++segmentIndex)
+	{
+		unsigned int const ring0 = (sideStartIndex + ((unsigned int)segmentIndex * vertsPerRing));
+		unsigned int const ring1 = (sideStartIndex + ((unsigned int)(segmentIndex + 1) * vertsPerRing));
+
+		for (int sliceIndex = 0; sliceIndex < numSlices; ++sliceIndex)
+		{
+			unsigned int const v00 = (ring0 + (unsigned int)sliceIndex);
+			unsigned int const v10 = (ring0 + (unsigned int)(sliceIndex + 1));
+			unsigned int const v01 = (ring1 + (unsigned int)sliceIndex);
+			unsigned int const v11 = (ring1 + (unsigned int)(sliceIndex + 1));
+
+			// Two triangles per quad
+			indexes.push_back(v00);
+			indexes.push_back(v10);
+			indexes.push_back(v11);
+
+			indexes.push_back(v00);
+			indexes.push_back(v11);
+			indexes.push_back(v01);
+		}
+	}
+}
+
 void AddVertsForCone3D(Verts& verts, Vec3 const& start, Vec3 const& end, float radius, Rgba8 const& tint, AABB2 const& uvs, int numSlices)
 {
 	const int START_INDEX = (int)verts.size();
@@ -1326,6 +2110,8 @@ void AddVertsForCone3D(Verts& verts, Vec3 const& start, Vec3 const& end, float r
 	//Transform all newly added verts to IJK space
 	TransformVertexArray3D(verts, transform, IntRange(START_INDEX, (int)(verts.size() - 1)));
 }
+
+
 
 void AddVertsForIndexedCone3D(VertTBNs& verts, std::vector<unsigned int>& indexes, Vec3 const& start, Vec3 const& end, float radius, Rgba8 const& tint, AABB2 const& uvs, int numSlices)
 {
@@ -1448,6 +2234,32 @@ void AddVertsForLineSegment3D(Verts& verts, Vec3 const& start, Vec3 const& end, 
 	TransformVertexArray3D(verts, transform, IntRange(START_INDEX, (int)(verts.size() - 1)));
 }
 
+void AddVertsForIndexedLineSegment3D(Verts& verts, IndexList& indexes, Vec3 const& start, Vec3 const& end, float thickness, Rgba8 const& tint, AABB2 const& uvs, float xNudgeFrac)
+{
+	const int START_INDEX = (int)verts.size();
+	const float HALF_THICKNESS = 0.5f * thickness;
+	const float X_NUDGE = xNudgeFrac * thickness;
+	float length = (end - start).GetLength();
+
+	Vec3 bottomLeft = Vec3(-X_NUDGE, 0.f, -HALF_THICKNESS);
+	Vec3 bottomRight = Vec3(length + X_NUDGE, 0.f, -HALF_THICKNESS);
+	Vec3 topRight = Vec3(length + X_NUDGE, 0.f, HALF_THICKNESS);
+	Vec3 topLeft = Vec3(-X_NUDGE, 0.f, HALF_THICKNESS);
+	AddVertsForIndexedQuad3D(verts, indexes, bottomLeft, bottomRight, topRight, topLeft, tint, uvs);
+	AddVertsForIndexedQuad3D(verts, indexes, bottomRight, bottomLeft, topLeft, topRight, tint, uvs);
+
+	bottomLeft = Vec3(-X_NUDGE, -HALF_THICKNESS, 0.f);
+	bottomRight = Vec3(length + X_NUDGE, -HALF_THICKNESS, 0.f);
+	topRight = Vec3(length + X_NUDGE, HALF_THICKNESS, 0.f);
+	topLeft = Vec3(-X_NUDGE, HALF_THICKNESS, 0.f);
+	AddVertsForIndexedQuad3D(verts, indexes, bottomLeft, bottomRight, topRight, topLeft, tint, uvs);
+	AddVertsForIndexedQuad3D(verts, indexes, bottomRight, bottomLeft, topLeft, topRight, tint, uvs);
+
+	Mat44 transform = GetLookAtTransform(start, end);
+	transform.AppendXRotation(45.f);
+	TransformVertexArray3D(verts, transform, IntRange(START_INDEX, (int)(verts.size() - 1)));
+}
+
 void AddVertsFor3DAsterisk(Verts& verts, Vec3 const& center, float radius, float lineThickness, Rgba8 const& tint, AABB2 const& uvs)
 {
 	Vec3 start = center + Vec3(radius, 0.f, 0.f);
@@ -1482,6 +2294,423 @@ void AddVertsFor3DAsterisk(Verts& verts, Vec3 const& center, float radius, float
 
 }
 
+void AddVertsForGrassBlade(Verts& verts, Vec3 const& bottom, float width, float height, int numSegments, Rgba8 const& tint, AABB2 const& uvs)
+{
+	const float halfWidth = width * 0.5f;
+	const float invSegmentCount = 1.f / (float)numSegments;
+	
+	  // Big triangle corners in model/world space for this blade
+	Vec3 const baseLeft = Vec3((bottom.x - halfWidth), bottom.y, bottom.z);
+	Vec3 const baseRight = Vec3((bottom.x + halfWidth), bottom.y, bottom.z);
+	Vec3 const tip = Vec3(bottom.x, bottom.y, (bottom.z + height));
+
+	// UV corners (match the big triangle)
+	float const uLeft = uvs.m_mins.x;
+	float const uRight = uvs.m_maxs.x;
+	float const vBottom = uvs.m_mins.y;
+	float const vTop = uvs.m_maxs.y;
+	float const uCenter = ((uLeft + uRight) * 0.5f);
+
+	// Define UVs for the big triangle vertices
+	Vec2 const uvBaseLeft = Vec2(uLeft, vBottom);
+	Vec2 const uvBaseRight = Vec2(uRight, vBottom);
+	Vec2 const uvTip = Vec2(uCenter, vTop);
+
+	for (int segmentIndex = 0; segmentIndex < numSegments; ++segmentIndex)
+	{
+		float t0 = ((float)segmentIndex * invSegmentCount);
+		float t1 = ((float)(segmentIndex + 1) * invSegmentCount);
+
+		// Points on the left and right edges of the big triangle
+		Vec3 left0 = Lerp(baseLeft, tip, t0);
+		Vec3 right0 = Lerp(baseRight, tip, t0);
+
+		Vec3 left1 = Lerp(baseLeft, tip, t1);
+		Vec3 right1 = Lerp(baseRight, tip, t1);
+
+		// Corresponding UVs (barycentric-consistent by edge lerp)
+		Vec2 uvLeft0 = Lerp(uvBaseLeft, uvTip, t0);
+		Vec2 uvRight0 = Lerp(uvBaseRight, uvTip, t0);
+
+		Vec2 uvLeft1 = Lerp(uvBaseLeft, uvTip, t1);
+		Vec2 uvRight1 = Lerp(uvBaseRight, uvTip, t1);
+
+		// The slice between t0 and t1 is a trapezoid, except the final one collapses to a point.
+		// Triangulate it in a way that preserves the outer silhouette.
+
+		bool nextSliceIsTip = (segmentIndex == (numSegments - 1));
+
+		if (!nextSliceIsTip)
+		{
+			// Two triangles forming the trapezoid:
+			// (left0, right0, left1) and (left1, right0, right1)
+			verts.push_back(Vertex_PCU(left0, tint, uvLeft0));
+			verts.push_back(Vertex_PCU(right0, tint, uvRight0));
+			verts.push_back(Vertex_PCU(left1, tint, uvLeft1));
+
+			verts.push_back(Vertex_PCU(left1, tint, uvLeft1));
+			verts.push_back(Vertex_PCU(right0, tint, uvRight0));
+			verts.push_back(Vertex_PCU(right1, tint, uvRight1));
+		}
+		else
+		{
+			// Final slice: left1 and right1 are both at the tip (numerically they should match),
+			// so just emit one triangle: (left0, right0, tip)
+			verts.push_back(Vertex_PCU(left0, tint, uvLeft0));
+			verts.push_back(Vertex_PCU(right0, tint, uvRight0));
+			verts.push_back(Vertex_PCU(tip, tint, uvTip));
+		}
+	}
+}
+
+void AddVertsForGrassBlade(VertTBNs& verts, IndexList& indexes, Vec3 const& bottom, float width, float height, int numSegments, Rgba8 const& tint, AABB2 const& uvs)
+{
+	float halfWidth = (width * 0.5f);
+	float invSegmentCount = (1.0f / (float)numSegments);
+
+	Vec3 const normal = Vec3(0.0f, -1.0f, 0.0f);
+	Vec3 const tangent = Vec3(1.0f, 0.0f, 0.0f);
+	Vec3 const biTangent = Vec3(0.0f, 0.0f, 1.0f);
+
+	// Big triangle corners
+	Vec3 const baseLeft = Vec3((bottom.x - halfWidth), bottom.y, bottom.z);
+	Vec3 const baseRight = Vec3((bottom.x + halfWidth), bottom.y, bottom.z);
+	Vec3 const tip = Vec3(bottom.x, bottom.y, (bottom.z + height));
+
+	// UV corners
+	float uLeft = uvs.m_mins.x;
+	float uRight = uvs.m_maxs.x;
+	float vBottom = uvs.m_mins.y;
+	float vTop = uvs.m_maxs.y;
+	float uCenter = ((uLeft + uRight) * 0.5f);
+
+	Vec2 const uvBaseLeft = Vec2(uLeft, vBottom);
+	Vec2 const uvBaseRight = Vec2(uRight, vBottom);
+	Vec2 const uvTip = Vec2(uCenter, vTop);
+
+	int startIndex = (int)verts.size();
+
+	// Store (numSegments + 1) rows. Each row has 2 vertices (left, right),
+	// except the last row where left==right==tip, but still store 2.
+	int rowCount = (numSegments + 1);
+	int vertexCount = (rowCount * 2);
+
+	verts.resize((size_t)(startIndex + vertexCount));
+
+	for (int rowIndex = 0; rowIndex < rowCount; ++rowIndex)
+	{
+		float t = ((float)rowIndex * invSegmentCount);
+
+		Vec3 leftPos = Lerp(baseLeft, tip, t);
+		Vec3 rightPos = Lerp(baseRight, tip, t);
+
+		Vec2 leftUV = Lerp(uvBaseLeft, uvTip, t);
+		Vec2 rightUV = Lerp(uvBaseRight, uvTip, t);
+
+		int leftVertexIndex = (startIndex + (rowIndex * 2) + 0);
+		int rightVertexIndex = (startIndex + (rowIndex * 2) + 1);
+
+		verts[(size_t)leftVertexIndex] = Vertex_PCUTBN(leftPos, tint, tangent, biTangent, normal, leftUV);
+		verts[(size_t)rightVertexIndex] = Vertex_PCUTBN(rightPos, tint, tangent, biTangent, normal, rightUV);
+	}
+
+	// Build indices for each segment between row i and i+1.
+	// For rows 0..numSegments-2: two triangles per quad strip.
+	// For the last segment: one triangle to the tip (use the left vertex of the last row as the tip).
+	for (int segmentIndex = 0; segmentIndex < numSegments; ++segmentIndex)
+	{
+		int row0 = segmentIndex;
+		int row1 = (segmentIndex + 1);
+
+		unsigned int left0 = (unsigned int)(startIndex + (row0 * 2) + 0);
+		unsigned int right0 = (unsigned int)(startIndex + (row0 * 2) + 1);
+
+		unsigned int left1 = (unsigned int)(startIndex + (row1 * 2) + 0);
+		unsigned int right1 = (unsigned int)(startIndex + (row1 * 2) + 1);
+
+		bool nextSliceIsTip = (segmentIndex == (numSegments - 1));
+
+		if (!nextSliceIsTip)
+		{
+			// (left0, right0, left1) and (left1, right0, right1)
+			indexes.push_back(left0);
+			indexes.push_back(right0);
+			indexes.push_back(left1);
+
+			indexes.push_back(left1);
+			indexes.push_back(right0);
+			indexes.push_back(right1);
+		}
+		else
+		{
+			// Tip triangle: (left0, right0, tip)
+			// Use left1 as the tip vertex (same position as right1, but this avoids a degenerate edge).
+			unsigned int tipIndex = left1;
+
+			indexes.push_back(left0);
+			indexes.push_back(right0);
+			indexes.push_back(tipIndex);
+		}
+	}
+}
+
+void AddVertsForSphereCappedCylinder(VertTBNs& verts, IndexList& indexes, Vec3 const& bottom,
+	float radius, float length, int numSlices, int numCylinderStacks, int numCapStacks, Rgba8 const& tint, AABB2 const& uvs)
+{
+	// Cap is always a sphere of radius == cylinder radius.
+	// Cap "height" is up to radius, but if length < radius then the shape is only a partial cap.
+	float capHeight = radius;
+	if (capHeight > length)
+	{
+		capHeight = length;
+	}
+
+	float cylinderHeight = (length - capHeight);
+	if (cylinderHeight < 0.0f)
+	{
+		cylinderHeight = 0.0f;
+	}
+
+	Vec3 capBaseCenter = bottom + (Vec3::UP * cylinderHeight);
+	Vec3 capTop = bottom + (Vec3::UP * length);
+
+	// Sphere center for a cap from this sphere:
+	// Top point is at capTop, sphere radius is "radius".
+	Vec3 sphereCenter = capTop - (Vec3::UP * radius);
+
+	float uvWidth = (uvs.m_maxs.x - uvs.m_mins.x);
+	float uvHeight = (uvs.m_maxs.y - uvs.m_mins.y);
+
+	float cylinderVEnd = uvs.m_mins.y;
+	if (length > 0.0f)
+	{
+		cylinderVEnd = (uvs.m_mins.y + ((cylinderHeight / length) * uvHeight));
+	}
+
+	// Bottom cap center vertex
+	unsigned int bottomCenterIndex = (unsigned int)verts.size();
+	{
+		Vec2 uvCenter = Vec2(((uvs.m_mins.x + uvs.m_maxs.x) * 0.5f), uvs.m_mins.y);
+		Vec3 tangent = Vec3::FORWARD;
+		Vec3 biTangent = Vec3::RIGHT;
+		Vec3 normal = Vec3::DOWN;
+		verts.push_back(Vertex_PCUTBN(bottom, tint, tangent, biTangent, normal, uvCenter));
+	}
+
+	int previousRingStart = -1;
+	int bottomRingStart = -1;
+	int capBaseRingStart = -1;
+
+	// ----------------------------
+	// Cylinder rings (include cap base ring at z=cylinderHeight)
+	// ----------------------------
+	if (cylinderHeight > 0.0f)
+	{
+		for (int stackIndex = 0; stackIndex <= numCylinderStacks; ++stackIndex)
+		{
+			float stackFraction = ((float)stackIndex / (float)numCylinderStacks);
+			float ringZ = (cylinderHeight * stackFraction);
+			float v = (uvs.m_mins.y + ((cylinderVEnd - uvs.m_mins.y) * stackFraction));
+
+			int ringStartIndex = (int)verts.size();
+
+			for (int sliceIndex = 0; sliceIndex <= numSlices; ++sliceIndex)
+			{
+				float sliceFraction = ((float)sliceIndex / (float)numSlices);
+				float yawDegrees = (360.0f * sliceFraction);
+
+				float cosYaw = CosDegrees(yawDegrees);
+				float sinYaw = SinDegrees(yawDegrees);
+
+				Vec3 axisPoint = bottom + (Vec3::UP * ringZ);
+				Vec3 ringOffset = Vec3((cosYaw * radius), (sinYaw * radius), 0.0f);
+				Vec3 position = axisPoint + ringOffset;
+
+				Vec3 normal = (position - axisPoint).GetNormalized();
+				Vec3 tangent = Vec3((-sinYaw), (cosYaw), 0.0f).GetNormalized();
+				Vec3 biTangent = CrossProduct3D(normal, tangent).GetNormalized();
+
+				float u = (uvs.m_mins.x + (uvWidth * sliceFraction));
+
+				verts.push_back(Vertex_PCUTBN(position, tint, tangent, biTangent, normal, Vec2(u, v)));
+			}
+
+			if (stackIndex == 0)
+			{
+				bottomRingStart = ringStartIndex;
+
+				for (int sliceIndex = 0; sliceIndex < numSlices; ++sliceIndex)
+				{
+					int a = (bottomRingStart + sliceIndex);
+					int b = (bottomRingStart + sliceIndex + 1);
+
+					indexes.push_back(bottomCenterIndex);
+					indexes.push_back((unsigned int)a);
+					indexes.push_back((unsigned int)b);
+				}
+			}
+
+			if (previousRingStart >= 0)
+			{
+				for (int sliceIndex = 0; sliceIndex < numSlices; ++sliceIndex)
+				{
+					int a0 = (previousRingStart + sliceIndex);
+					int a1 = (previousRingStart + sliceIndex + 1);
+					int b0 = (ringStartIndex + sliceIndex);
+					int b1 = (ringStartIndex + sliceIndex + 1);
+
+					indexes.push_back((unsigned int)a0);
+					indexes.push_back((unsigned int)b1);
+					indexes.push_back((unsigned int)b0);
+
+					indexes.push_back((unsigned int)a0);
+					indexes.push_back((unsigned int)a1);
+					indexes.push_back((unsigned int)b1);
+				}
+			}
+
+			previousRingStart = ringStartIndex;
+
+			if (stackIndex == numCylinderStacks)
+			{
+				capBaseRingStart = ringStartIndex;
+			}
+		}
+	}
+	else
+	{
+		// No cylinder. Create a base ring at z=0 with radius == "radius".
+		// Note: if length < radius, the sphere cap on top cannot match this ring radius.
+		float v = uvs.m_mins.y;
+
+		int ringStartIndex = (int)verts.size();
+
+		for (int sliceIndex = 0; sliceIndex <= numSlices; ++sliceIndex)
+		{
+			float sliceFraction = ((float)sliceIndex / (float)numSlices);
+			float yawDegrees = (360.0f * sliceFraction);
+
+			float cosYaw = CosDegrees(yawDegrees);
+			float sinYaw = SinDegrees(yawDegrees);
+
+			Vec3 axisPoint = bottom;
+			Vec3 ringOffset = Vec3((cosYaw * radius), (sinYaw * radius), 0.0f);
+			Vec3 position = axisPoint + ringOffset;
+
+			Vec3 normal = (position - axisPoint).GetNormalized();
+			Vec3 tangent = Vec3((-sinYaw), (cosYaw), 0.0f).GetNormalized();
+			Vec3 biTangent = CrossProduct3D(normal, tangent).GetNormalized();
+
+			float u = (uvs.m_mins.x + (uvWidth * sliceFraction));
+
+			verts.push_back(Vertex_PCUTBN(position, tint, tangent, biTangent, normal, Vec2(u, v)));
+		}
+
+		bottomRingStart = ringStartIndex;
+		capBaseRingStart = ringStartIndex;
+		previousRingStart = ringStartIndex;
+
+		for (int sliceIndex = 0; sliceIndex < numSlices; ++sliceIndex)
+		{
+			int a = (bottomRingStart + sliceIndex);
+			int b = (bottomRingStart + sliceIndex + 1);
+
+			indexes.push_back(bottomCenterIndex);
+			indexes.push_back((unsigned int)a);
+			indexes.push_back((unsigned int)b);
+		}
+	}
+
+	// ----------------------------
+	// Sphere cap rings above cap base (sphere radius == cylinder radius)
+	// ----------------------------
+	int previousCapRingStart = capBaseRingStart;
+
+	// Build intermediate rings up to the pole. If capHeight == 0, we still emit the pole.
+	for (int capStackIndex = 1; capStackIndex < numCapStacks; ++capStackIndex)
+	{
+		float stackFraction = ((float)capStackIndex / (float)numCapStacks);
+		float ringZWorld = (cylinderHeight + (capHeight * stackFraction));
+		float v = (cylinderVEnd + ((uvs.m_maxs.y - cylinderVEnd) * stackFraction));
+
+		float zFromCenter = (ringZWorld - sphereCenter.z);
+		float radiusSq = ((radius * radius) - (zFromCenter * zFromCenter));
+
+		float ringRadius = 0.0f;
+		if (radiusSq > 0.0f)
+		{
+			ringRadius = sqrtf(radiusSq);
+		}
+
+		int ringStartIndex = (int)verts.size();
+
+		for (int sliceIndex = 0; sliceIndex <= numSlices; ++sliceIndex)
+		{
+			float sliceFraction = ((float)sliceIndex / (float)numSlices);
+			float yawDegrees = (360.0f * sliceFraction);
+
+			float cosYaw = CosDegrees(yawDegrees);
+			float sinYaw = SinDegrees(yawDegrees);
+
+			Vec3 axisPoint = bottom + (Vec3::UP * ringZWorld);
+			Vec3 ringOffset = Vec3((cosYaw * ringRadius), (sinYaw * ringRadius), 0.0f);
+			Vec3 position = axisPoint + ringOffset;
+
+			Vec3 normal = (position - sphereCenter).GetNormalized();
+			Vec3 tangent = Vec3((-sinYaw), (cosYaw), 0.0f).GetNormalized();
+			Vec3 biTangent = CrossProduct3D(normal, tangent).GetNormalized();
+
+			float u = (uvs.m_mins.x + (uvWidth * sliceFraction));
+
+			verts.push_back(Vertex_PCUTBN(position, tint, tangent, biTangent, normal, Vec2(u, v)));
+		}
+
+		for (int sliceIndex = 0; sliceIndex < numSlices; ++sliceIndex)
+		{
+			int a0 = (previousCapRingStart + sliceIndex);
+			int a1 = (previousCapRingStart + sliceIndex + 1);
+			int b0 = (ringStartIndex + sliceIndex);
+			int b1 = (ringStartIndex + sliceIndex + 1);
+
+			indexes.push_back((unsigned int)a0);
+			indexes.push_back((unsigned int)b1);
+			indexes.push_back((unsigned int)b0);
+
+			indexes.push_back((unsigned int)a0);
+			indexes.push_back((unsigned int)a1);
+			indexes.push_back((unsigned int)b1);
+		}
+
+		previousCapRingStart = ringStartIndex;
+	}
+
+	// Pole at the top (z = bottom.z + length)
+	unsigned int poleIndex = (unsigned int)verts.size();
+	{
+		Vec3 polePosition = capTop;
+		Vec3 normal = (polePosition - sphereCenter).GetNormalized();
+
+		Vec3 tangent = Vec3::FORWARD;
+		Vec3 biTangent = CrossProduct3D(normal, tangent).GetNormalized();
+
+		float u = ((uvs.m_mins.x + uvs.m_maxs.x) * 0.5f);
+		float v = uvs.m_maxs.y;
+
+		verts.push_back(Vertex_PCUTBN(polePosition, tint, tangent, biTangent, normal, Vec2(u, v)));
+	}
+
+	for (int sliceIndex = 0; sliceIndex < numSlices; ++sliceIndex)
+	{
+		int a = (previousCapRingStart + sliceIndex);
+		int b = (previousCapRingStart + sliceIndex + 1);
+
+		indexes.push_back((unsigned int)a);
+		indexes.push_back((unsigned int)b);
+		indexes.push_back(poleIndex);
+	}
+}
+
+
 void AddVertsForWireFrameAABB3D(Verts& verts, AABB3 const& bounds, float lineThickness, Rgba8 const& color, AABB2 const& uvs)
 {
 	Vec3 backRightBottom = bounds.m_mins;
@@ -1508,6 +2737,33 @@ void AddVertsForWireFrameAABB3D(Verts& verts, AABB3 const& bounds, float lineThi
 	AddVertsForLineSegment3D(verts, frontLeftBottom, frontRightBottom, lineThickness, color, uvs);
 	AddVertsForLineSegment3D(verts, frontLeftTop, frontRightTop, lineThickness, color, uvs);
 
+}
+
+void AddVertsForIndexedWireFrameAABB3D(Verts& verts, IndexList& indexes, AABB3 const& bounds, float lineThickness, Rgba8 const& color, AABB2 const& uvs)
+{
+	Vec3 backRightBottom = bounds.m_mins;
+	Vec3 frontRightBottom = Vec3(bounds.m_maxs.x, bounds.m_mins.y, bounds.m_mins.z);
+	Vec3 frontRightTop = Vec3(bounds.m_maxs.x, bounds.m_mins.y, bounds.m_maxs.z);
+	Vec3 backRightTop = Vec3(bounds.m_mins.x, bounds.m_mins.y, bounds.m_maxs.z);
+	Vec3 backLeftBottom = Vec3(bounds.m_mins.x, bounds.m_maxs.y, bounds.m_mins.z);
+	Vec3 frontLeftBottom = Vec3(bounds.m_maxs.x, bounds.m_maxs.y, bounds.m_mins.z);
+	Vec3 frontLeftTop = Vec3(bounds.m_maxs.x, bounds.m_maxs.y, bounds.m_maxs.z);
+	Vec3 backLeftTop = Vec3(bounds.m_mins.x, bounds.m_maxs.y, bounds.m_maxs.z);
+
+	AddVertsForIndexedLineSegment3D(verts, indexes, backRightBottom, frontRightBottom, lineThickness, color, uvs);
+	AddVertsForIndexedLineSegment3D(verts, indexes, frontRightBottom, frontRightTop, lineThickness, color, uvs);
+	AddVertsForIndexedLineSegment3D(verts, indexes, frontRightTop, backRightTop, lineThickness, color, uvs);
+	AddVertsForIndexedLineSegment3D(verts, indexes, backRightTop, backRightBottom, lineThickness, color, uvs);
+
+	AddVertsForIndexedLineSegment3D(verts, indexes, backLeftBottom, frontLeftBottom, lineThickness, color, uvs);
+	AddVertsForIndexedLineSegment3D(verts, indexes, frontLeftBottom, frontLeftTop, lineThickness, color, uvs);
+	AddVertsForIndexedLineSegment3D(verts, indexes, frontLeftTop, backLeftTop, lineThickness, color, uvs);
+	AddVertsForIndexedLineSegment3D(verts, indexes, backLeftTop, backLeftBottom, lineThickness, color, uvs);
+
+	AddVertsForIndexedLineSegment3D(verts, indexes, backLeftBottom, backRightBottom, lineThickness, color, uvs);
+	AddVertsForIndexedLineSegment3D(verts, indexes, backLeftTop, backRightTop, lineThickness, color, uvs);
+	AddVertsForIndexedLineSegment3D(verts, indexes, frontLeftBottom, frontRightBottom, lineThickness, color, uvs);
+	AddVertsForIndexedLineSegment3D(verts, indexes, frontLeftTop, frontRightTop, lineThickness, color, uvs);
 }
 
 void AddVertsForWireFrameOBB3D(Verts& verts, OBB3 const& orientedBox, float lineThickness, Rgba8 const& color, AABB2 const& uvs)
@@ -1620,6 +2876,14 @@ void AddVertsForWireFrameCone3D(Verts& verts, float lineThickness, Vec3 const& s
 
 	Mat44 transform = GetLookAtTransform(start, end);
 	TransformVertexArray3D(verts, transform, IntRange(START_INDEX, (int)(verts.size() - 1)));
+}
+
+void AddVertsForWireFrameQuad3D(Verts& verts, Vec3 const& bottomLeft, Vec3 const& bottomRight, Vec3 const& topRight, Vec3 const& topLeft, float thickness, Rgba8 const& color, AABB2 const& uvs)
+{
+	AddVertsForLineSegment3D(verts, bottomLeft, bottomRight, thickness, color, uvs);
+	AddVertsForLineSegment3D(verts, bottomRight, topRight, thickness, color, uvs);
+	AddVertsForLineSegment3D(verts, topRight, topLeft, thickness, color, uvs);
+	AddVertsForLineSegment3D(verts, topLeft, bottomLeft, thickness, color, uvs);
 }
 
 

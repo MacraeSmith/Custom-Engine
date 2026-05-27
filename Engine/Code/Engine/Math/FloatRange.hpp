@@ -1,4 +1,5 @@
 #pragma once
+#include <string>
 
 struct Vec2;
 class RandomNumberGenerator;
@@ -29,11 +30,13 @@ public:
 	bool const IsWithinRange(float number) const;
 	bool const IsOverlapping(FloatRange const& range) const;
 	float GetRandomValueInRange(RandomNumberGenerator* randomNumberGenerator = nullptr) const;
-
+	std::string GetAsText(int numDecimals = 2) const;
 	//Mutators
 	//-----------------------------------------------------------------------------------------------
 	void SetFromText(char const* text);
 	void StretchToIncludeValue(float value);
+
+	float FloatRangeLerp(float t) const;
 
 	// Operators (const)
 	//-----------------------------------------------------------------------------------------------

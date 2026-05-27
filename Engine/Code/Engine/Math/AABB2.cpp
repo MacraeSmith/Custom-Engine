@@ -25,10 +25,16 @@ AABB2::AABB2(Vec2 const& mins, Vec2 const& maxs)
 {
 }
 
-bool AABB2::IsPointInside(Vec2 const& point) const
+bool AABB2::IsPointOnOrInside(Vec2 const& point) const
 {
 	return point.x >= m_mins.x && point.x <= m_maxs.x
 		&& point.y >= m_mins.y && point.y <= m_maxs.y;
+}
+
+bool AABB2::IsPointInsideBounds(Vec2 const& point) const
+{
+	return point.x > m_mins.x && point.x < m_maxs.x
+		&& point.y > m_mins.y && point.y < m_maxs.y;
 }
 
 bool AABB2::IsDiscInside(Vec2 const& discCenter, float discRadius) const
@@ -211,6 +217,16 @@ void AABB2::AddPadding(float xPadPercent, float yPadPadPercent)
 	m_maxs.y += (yPadPadPercent * dims.y);
 }
 
+void AABB2::AddPadding(float minXPadPercent, float minYPadPercent, float maxXPadPercent, float maxYPadPercent)
+{
+
+	Vec2 dims = GetDimensions();
+	m_mins.x -= (minXPadPercent * dims.x);
+	m_mins.y -= (minYPadPercent * dims.y);
+	m_maxs.x += (maxXPadPercent * dims.x);
+	m_maxs.y += (maxYPadPercent * dims.y);
+}
+
 void AABB2::AddPadding(Vec2 const& minsPadPercent, Vec2 const& maxsPadPercent)
 {
 	Vec2 dims = GetDimensions();
@@ -241,15 +257,43 @@ std::vector<AABB2> AABB2::GetVerticalSlicedBoxesLeftToRight(int numBoxes)
 	std::vector<AABB2> slicedBoxes;
 	slicedBoxes.reserve(numBoxes);
 
-	float horizontalStep = GetDimensions().y / (float)numBoxes;
+	float horizontalStep = GetDimensions().x / (float)numBoxes;
 	for (int i = 0; i < numBoxes; ++i)
 	{
-		float xMin = m_maxs.x - (i * horizontalStep);
-		float xMax = m_maxs.x - ((i + 1) * horizontalStep);
+		float xMin = m_mins.x + horizontalStep * i;
+		float xMax = m_mins.x + horizontalStep * (i + 1);
 		slicedBoxes.push_back(AABB2(xMin, m_mins.y, xMax, m_maxs.y));
 	}
 
 	return slicedBoxes;
+}
+
+AABB2 AABB2::ChopOffTop(float percentOfOriginialToChop)
+{
+	float maxY = m_maxs.y;
+	AddPadding(Vec2::ZERO, Vec2(0.f, -percentOfOriginialToChop));
+	return AABB2(m_mins.x, m_mins.y, m_maxs.y, maxY);
+}
+
+AABB2 AABB2::ChopOffBottom(float percentToChopOff)
+{
+	float minsY = m_mins.y;
+	AddPadding(Vec2(0.f, -percentToChopOff), Vec2::ZERO);
+	return AABB2(m_mins.x, minsY, m_maxs.x, m_mins.y);
+}
+
+AABB2 AABB2::ChopOffLeft(float percentToChopOff)
+{
+	float minsX = m_mins.x;
+	AddPadding(Vec2( -percentToChopOff, 0.f), Vec2::ZERO);
+	return AABB2(minsX, m_mins.y, m_mins.x, m_maxs.y);
+}
+
+AABB2 AABB2::ChopOffRight(float percentToChopOff)
+{
+	float maxsX = m_maxs.x;
+	AddPadding(Vec2::ZERO, Vec2(-percentToChopOff, 0.f));
+	return AABB2(m_maxs.x, maxsX, m_mins.y, m_maxs.y);
 }
 
 bool AABB2::operator==(AABB2 otherBox)

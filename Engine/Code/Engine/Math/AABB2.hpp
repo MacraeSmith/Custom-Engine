@@ -21,7 +21,8 @@ public:
 	explicit AABB2(Vec2 const& mins, Vec2 const& maxs);
 
 	//Accessors (const methods)
-	bool IsPointInside(Vec2 const& point) const;
+	bool IsPointOnOrInside(Vec2 const& point) const;
+	bool IsPointInsideBounds(Vec2 const& point) const;
 	bool IsDiscInside(Vec2 const& discCenter, float discRadius) const;
 	Vec2 const GetCenterPos() const;
 	Vec2 const GetDimensions() const;
@@ -45,9 +46,13 @@ public:
 	void SetDimensions(Vec2 const& newDimensions);
 	void StretchToIncludePoint(Vec2 const& point);
 	void AddPadding(float xPadPercent, float yPadPadPercent);
+	void AddPadding(float minXPadPercent, float minYPadPercent, float maxXPadPercent, float maxYPadPercent);
 	void AddPadding(Vec2 const& minsPadPercent, Vec2 const& maxsPadPercent);
 
-	AABB2 ChopOffTop(float percentOfOriginialToChop, float extraHeightOfChoppedPiece); //chop off and return new piece
+	AABB2 ChopOffTop(float percentOfOriginialToChop); //chop off and return new piece
+	AABB2 ChopOffBottom(float percentToChopOff);
+	AABB2 ChopOffLeft(float percentToChopOff);
+	AABB2 ChopOffRight(float percentToChopOff);
 	std::vector<AABB2> GetHorizontalSlicedBoxesTopToBottom(int numBoxes);
 	std::vector<AABB2> GetVerticalSlicedBoxesLeftToRight(int numBoxes);
 

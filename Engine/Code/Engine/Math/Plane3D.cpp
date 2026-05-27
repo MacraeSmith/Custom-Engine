@@ -7,6 +7,12 @@ Plane3D::Plane3D(Vec3 const& normal, float distance)
 {
 }
 
+Plane3D::Plane3D(Vec3 const& a, Vec3 const& b, Vec3 const& c)
+{
+	m_normal = CrossProduct3D(b - a, c - a).GetNormalized();
+	m_distanceAlongNormal = DotProduct3D(m_normal, a);
+}
+
 Vec3 Plane3D::GetNearestPointToOrigin() const
 {
 	return m_normal * m_distanceAlongNormal;

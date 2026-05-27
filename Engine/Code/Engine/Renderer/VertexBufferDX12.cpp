@@ -39,6 +39,7 @@ D3D12_CPU_DESCRIPTOR_HANDLE VertexBufferDX12::GetShaderResourceView(D3D12_SHADER
 {
 	UNUSED(srvDesc);
 	ERROR_AND_DIE("VertexBufferDX12::GetShaderResourceView() should not be called");
+
 }
 
 D3D12_CPU_DESCRIPTOR_HANDLE VertexBufferDX12::GetUnorderedAccessView(D3D12_UNORDERED_ACCESS_VIEW_DESC const* uavDesc) const

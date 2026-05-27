@@ -16,6 +16,8 @@ public:
 	void SetAllValues(float value);
 	void SetValue(int index, float value);
 	float GetValue(int index) const;
+	float GetValue(IntVec2 const& coords) const;
+	int GetIndexFromCoords(IntVec2 const& coords) const;
 	void AddValue(int index, float value);
 
 	FloatRange const GetRangeOfValues(float specialValueToIgnore) const;

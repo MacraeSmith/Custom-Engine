@@ -15,6 +15,14 @@ DescriptorAllocator::DescriptorAllocator(D3D12_DESCRIPTOR_HEAP_TYPE type, Render
 {
 }
 
+DescriptorAllocator::~DescriptorAllocator()
+{
+	for (int i = 0; i < (int)m_heapPool.size(); ++i)
+	{
+		m_heapPool[i].reset();
+	}
+}
+
 DescriptorAllocation DescriptorAllocator::Allocate(uint32_t numDescriptors)
 {
 	std::lock_guard<std::mutex> lock(m_allocationMutex);
@@ -104,7 +112,7 @@ DescriptorAllocatorPage::DescriptorAllocatorPage(D3D12_DESCRIPTOR_HEAP_TYPE type
 
 DescriptorAllocatorPage::~DescriptorAllocatorPage()
 {
-	//DX_SAFE_RELEASE(m_descriptorHeap);
+	DX_SAFE_RELEASE(m_descriptorHeap);
 }
 
 D3D12_DESCRIPTOR_HEAP_TYPE DescriptorAllocatorPage::GetHeapType() const
@@ -132,7 +140,7 @@ bool DescriptorAllocatorPage::HasSpace(uint32_t numDescriptors) const
 void DescriptorAllocatorPage::Free(DescriptorAllocation&& descriptor, uint64_t frameNumber)
 {
 	// Compute the offset of the descriptor within the descriptor heap.
-	auto offset = ComputeOffset(descriptor.GetDescriptorHandle());
+	auto offset = ComputeOffset(descriptor.GetCPUDescriptorHandle());
 
 	std::lock_guard<std::mutex> lock(m_allocationMutex);
 
@@ -359,7 +367,7 @@ bool DescriptorAllocation::IsNull() const
 }
 
 // Get a descriptor at a particular offset in the allocation.
-D3D12_CPU_DESCRIPTOR_HANDLE DescriptorAllocation::GetDescriptorHandle(uint32_t offset) const
+D3D12_CPU_DESCRIPTOR_HANDLE DescriptorAllocation::GetCPUDescriptorHandle(uint32_t offset) const
 {
 	assert(offset < m_NumHandles);
 	return { m_Descriptor.ptr + (m_DescriptorSize * offset) };
@@ -373,4 +381,11 @@ uint32_t DescriptorAllocation::GetNumHandles() const
 std::shared_ptr<DescriptorAllocatorPage> DescriptorAllocation::GetDescriptorAllocatorPage() const
 {
 	return m_Page;
+}
+
+StaleDescriptorInfo::StaleDescriptorInfo(OffsetType offset, SizeType size, uint64_t frame)
+	: m_offset(offset)
+	, m_size(size)
+	, m_frameNumber(frame)
+{
 }

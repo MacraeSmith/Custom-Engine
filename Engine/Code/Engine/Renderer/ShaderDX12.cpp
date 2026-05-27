@@ -16,3 +16,8 @@ std::string const& ShaderDX12::GetName() const
 {
 	return m_config.m_name;
 }
+
+bool ShaderDX12::IsComputeShader() const
+{
+	return m_computeShaderBlob != nullptr;
+}

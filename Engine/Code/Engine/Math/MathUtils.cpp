@@ -17,6 +17,9 @@
 #include "Engine/Math/ZCylinder3D.hpp"
 #include "Engine/Math/OBB3.hpp"
 #include "Engine/Math/Plane3D.hpp"
+#include "Engine/Math/Plane2D.hpp"
+#include "Engine/Math/ConvexHull2.hpp"
+#include "Engine/Renderer/Camera.hpp"
 #include <math.h>
 
 
@@ -106,6 +109,7 @@ float GetClampedZeroToOne(float value)
 	return value;
 }
 
+
 float Lerp(float start, float end, float fractionTowardEnd)
 {
 	return start + (fractionTowardEnd * (end - start));
@@ -139,6 +143,12 @@ Vec3 Lerp(Vec3 const& start, Vec3 const& end, float fractionTowardEnd, bool norm
 	return pos;
 }
 
+float LerpAngleDegrees(float a, float b, float t)
+{
+	float diff = fmodf(b - a + 540.f, 360.f) - 180.f;
+	return a + diff * t;
+}
+
 
 float GetFractionWithinRange(float value, float rangeStart, float rangeEnd)
 {
@@ -148,6 +158,11 @@ float GetFractionWithinRange(float value, float rangeStart, float rangeEnd)
 float GetClampedFractionWithinRange(float value, float rangeStart, float rangeEnd)
 {
 	return GetClampedZeroToOne((value - rangeStart) / (rangeEnd - rangeStart));
+}
+
+float RangeMapFrom01toNeg11(float value)
+{
+	return ((value * 2.0f) - 1.0f);
 }
 
 float RangeMap(float inValue, float inStart, float inEnd, float outStart, float outEnd)
@@ -163,10 +178,51 @@ float RangeMapClamped(float inValue, float inStart, float inEnd, float outStart,
 	return Lerp(outStart, outEnd, fraction);
 }
 
+Vec2 RangeMap(Vec2 const& inValue, Vec2 const& inStart, Vec2 const& inEnd, Vec2 const& outStart, Vec2 const& outEnd)
+{
+	float x = RangeMap(inValue.x, inStart.x, inEnd.x, outStart.x, outEnd.x);
+	float y = RangeMap(inValue.y, inStart.y, inEnd.y, outStart.y, outEnd.y);
+	return Vec2(x,y);
+}
+
+int RoundToNearestInt(float value)
+{
+	return (int)floorf(value + 0.5f);
+}
+
 int RoundDownToInt(float value)
 {
-    value = floorf(value);
-	return (int)(value);
+	return (int)(floorf(value));
+}
+
+
+
+float GetMin(float a, float b)
+{
+	return a < b ? a : b;
+}
+
+int GetMin(int a, int b)
+{
+	return a < b ? a : b;
+}
+
+unsigned int GetMin(unsigned int a, unsigned int b)
+{
+	return a < b ? a : b;
+}
+
+int GetGreatestCommonDivisor(int a, int b)
+{
+	a = (a < 0) ? -a : a;
+	b = (b < 0) ? -b : b;
+	while (b != 0)
+	{
+		int t = (a % b);
+		a = b;
+		b = t;
+	}
+	return a;
 }
 
 //--------------------------------------------------------------------
@@ -747,6 +803,51 @@ bool DoOBB3AndPlane3Overlap3D(OBB3 const& orientedBox, Plane3D const& plane)
 		return true;
 
 	return false;
+}
+
+bool DoPlanes2DIntersect(Vec2& out_intersectionPoint, Plane2D const& a, Plane2D const& b)
+{
+	return a.DoesPlaneIntersectWithPlane(out_intersectionPoint, b);
+}
+
+bool IsSphereInViewFrustum(Vec3 const& sphereCenter, float sphereRadius, Frustum const& frustrum)
+{
+	constexpr int NUM_PLANES = 6;
+	for (int i = 0; i < NUM_PLANES; ++i)
+	{
+		Plane3D currentPlane = frustrum.m_planes[i];
+		Vec3 referencePos = sphereCenter - (currentPlane.m_normal * sphereRadius);
+		if(currentPlane.IsPointInFrontOf(referencePos))
+			return false;
+	}
+
+	return true;
+}
+
+bool IsAABB3inViewFrustum(AABB3 const& bounds, Frustum const& frustum)
+{
+	Vec3 const boxCenter = ((bounds.m_mins + bounds.m_maxs) * 0.5f);
+	Vec3 const boxExtents = ((bounds.m_maxs - bounds.m_mins) * 0.5f);
+
+	for (int planeIndex = 0; planeIndex < 6; ++planeIndex)
+	{
+		Plane3D const& plane = frustum.m_planes[planeIndex];
+		Vec3 const unitNormal = plane.m_normal.GetNormalized();
+
+		float const projectedRadius =
+			(fabsf(unitNormal.x) * boxExtents.x) +
+			(fabsf(unitNormal.y) * boxExtents.y) +
+			(fabsf(unitNormal.z) * boxExtents.z);
+
+		float const signedDistanceToCenter = DotProduct3D(unitNormal, boxCenter) - plane.m_distanceAlongNormal;
+
+		if (signedDistanceToCenter > projectedRadius)
+		{
+			return false;
+		}
+	}
+
+	return true;
 }
 
 
@@ -1788,7 +1889,7 @@ RaycastResult2D RaycastVsAABB2D(Ray2 const& ray, AABB2 const& alignedBox)
 	if (!DoAABB2sOverlap(alignedBox, rayBounds)) // ray is nowhere near box
 		return result;
 
-	if (alignedBox.IsPointInside(ray.m_startPos))
+	if (alignedBox.IsPointOnOrInside(ray.m_startPos))
 	{
 		result.m_didImpact = true;
 		result.m_impactNormal = -ray.m_fwrdNormal;
@@ -1884,6 +1985,155 @@ RaycastResult2D RaycastVsOBB2D(Ray2 const& ray, OBB2 const& orientedBox)
 	return result;
 }
 
+RaycastResult2D RaycastVsPlane2D(Ray2 const& ray, Plane2D const& plane)
+{
+	RaycastResult2D result;
+	result.m_didImpact = false;
+	result.m_impactDistance = ray.m_maxLength;
+	result.m_impactNormal = ray.m_fwrdNormal;
+	result.m_impactPos = ray.m_startPos + (ray.m_fwrdNormal * ray.m_maxLength);
+
+	Vec2 rayEndPos = ray.m_startPos + (ray.m_fwrdNormal * ray.m_maxLength);
+	float startAltitude = plane.GetAltitudeFromPoint(ray.m_startPos);
+	float endAltitude = plane.GetAltitudeFromPoint(rayEndPos);
+
+	if (startAltitude * endAltitude >= 0.f)
+	{
+		return result; //failed straddle check
+	}
+
+	float distanceToPlaneAlongRayFwrd = -startAltitude / DotProduct2D(ray.m_fwrdNormal, plane.m_normal);
+	if (distanceToPlaneAlongRayFwrd < ray.m_maxLength)
+	{
+		result.m_didImpact = true;
+		result.m_impactDistance = distanceToPlaneAlongRayFwrd;
+		result.m_impactPos = ray.m_startPos + (ray.m_fwrdNormal * distanceToPlaneAlongRayFwrd);
+		result.m_impactNormal = plane.m_normal;
+
+		if (startAltitude < 0)
+		{
+			result.m_impactNormal = -plane.m_normal;
+		}
+	}
+
+	return result;
+}
+
+RaycastResult2D RaycastVsConvexHull2(Ray2 const& ray, ConvexHull2 const& convexHull)
+{
+	RaycastResult2D result;
+	result.m_didImpact = false;
+	result.m_impactDistance = ray.m_maxLength;
+	result.m_impactNormal = ray.m_fwrdNormal;
+	result.m_impactPos = ray.m_startPos + (ray.m_fwrdNormal * ray.m_maxLength);
+
+	std::vector<float> entranceLengths;
+	entranceLengths.reserve(1 + convexHull.m_planes.size());
+	entranceLengths.push_back(0);
+
+	std::vector<float> exitLengths;
+	exitLengths.reserve(1 + convexHull.m_planes.size());
+	exitLengths.push_back(ray.m_maxLength);
+
+	std::vector<RaycastResult2D> entranceHits;
+	std::vector<RaycastResult2D> exitHits;
+	int lastEnterIndex = -1;
+	int firstExitIndex = -1;
+
+	for (int i = 0; i < (int)convexHull.m_planes.size(); ++i)
+	{
+		
+		for (int j = 0; j < (int)exitLengths.size(); ++j)
+		{
+			for (int n = 0; n < (int)entranceHits.size(); ++n)
+			{
+				if(exitLengths[j] < entranceLengths[n])
+					return result;
+			}
+		}
+		
+		
+
+		RaycastResult2D planeResult = RaycastVsPlane2D(ray, convexHull.m_planes[i]);
+		if (planeResult.m_didImpact)
+		{
+			if (convexHull.m_planes[i].IsPointInFrontOf(ray.m_startPos))
+			{
+				entranceHits.push_back(planeResult);
+				entranceLengths.push_back(planeResult.m_impactDistance);
+
+				int newEnterIdx = (int)(entranceHits.size() - 1);
+				if (lastEnterIndex >= 0)
+				{
+					if (planeResult.m_impactDistance > entranceHits[lastEnterIndex].m_impactDistance)
+					{
+						lastEnterIndex = newEnterIdx;
+					}
+				}
+
+				else if (planeResult.m_impactDistance > 0.f)
+				{
+					lastEnterIndex = newEnterIdx;
+				}
+			}
+
+			else
+			{
+				exitHits.push_back(planeResult);
+				exitLengths.push_back(planeResult.m_impactDistance);
+				int newExitIdx = (int)(exitHits.size() - 1);
+
+				if (firstExitIndex >= 0)
+				{
+					if (planeResult.m_impactDistance < exitHits[firstExitIndex].m_impactDistance)
+					{
+						firstExitIndex = newExitIdx;
+					}
+				}
+
+				else if (planeResult.m_impactDistance < ray.m_maxLength)
+				{
+					firstExitIndex = newExitIdx;
+				}
+			}
+		}
+	}
+
+	if (lastEnterIndex == -1)
+	{
+		if (convexHull.IsPointInside(ray.m_startPos))
+		{
+			result.m_impactNormal = -ray.m_fwrdNormal;
+			result.m_impactDistance = 0.f;
+			result.m_didImpact = true;
+			result.m_impactPos = ray.m_startPos;
+		}
+
+		return result;
+	}
+
+	else
+	{
+
+		Vec2 firstEntrancePos = entranceHits[lastEnterIndex].m_impactPos;
+		
+		Vec2 lastExitPos = ray.m_startPos + (ray.m_fwrdNormal * ray.m_maxLength);
+		if (firstExitIndex >= 0)
+		{
+			lastExitPos = exitHits[firstExitIndex].m_impactPos;
+		}
+
+		Vec2 middlePoint = (firstEntrancePos + lastExitPos) * 0.5f;
+
+		if (convexHull.IsPointInside(middlePoint))
+		{
+			result = entranceHits[lastEnterIndex];
+		}
+	}
+
+	return result;
+}
+
 RaycastResult3D RaycastVsSphere3D(Ray3 const& ray, Vec3 const& sphereCenter, float sphereRadius)
 {
 	RaycastResult3D result;
@@ -1951,7 +2201,7 @@ RaycastResult3D RaycastVsAABB3D(Ray3 const& ray, AABB3 const& box)
 	if (!DoAABB3sOverlap3D(box, rayBounds))
 		return result;
 	
-	if (box.IsPointInside(ray.m_startPos))
+	if (box.IsPointOnOrInside(ray.m_startPos))
 	{
 		result.m_didImpact = true;
 		result.m_impactNormal = -ray.m_fwrdNormal;
@@ -2047,7 +2297,7 @@ RaycastResult3D RaycastVsAABB3D(Vec3 const& startPos, Vec3 const& fwrdNormal, fl
 	result.m_impactPos = rayEnd;
 	result.m_impactDistance = maxDist;
 
-	if (box.IsPointInside(startPos))
+	if (box.IsPointOnOrInside(startPos))
 	{
 		result.m_didImpact = true;
 		result.m_impactNormal = -fwrdNormal;
@@ -2058,6 +2308,112 @@ RaycastResult3D RaycastVsAABB3D(Vec3 const& startPos, Vec3 const& fwrdNormal, fl
 
 	AABB3 rayBounds(startPos, startPos);
 	rayBounds.StretchToIncludePoint(rayEnd);
+
+	if (!DoAABB3sOverlap3D(box, rayBounds))
+		return result;
+
+	float maxLenFrac = 1.f / maxDist;
+
+	//t x range
+	float deltaX = box.m_mins.x - startPos.x;
+	FloatRange tRangeX(maxLenFrac * (deltaX / fwrdNormal.x));
+	deltaX = box.m_maxs.x - startPos.x;
+	tRangeX.StretchToIncludeValue(maxLenFrac * (deltaX / fwrdNormal.x));
+
+	//t y range
+	float deltaY = box.m_mins.y - startPos.y;
+	FloatRange tRangeY(maxLenFrac * (deltaY / fwrdNormal.y));
+	deltaY = box.m_maxs.y - startPos.y;
+	tRangeY.StretchToIncludeValue(maxLenFrac * (deltaY / fwrdNormal.y));
+
+	//t z range
+	float deltaZ = box.m_mins.z - startPos.z;
+	FloatRange tRangeZ(maxLenFrac * (deltaZ / fwrdNormal.z));
+	deltaZ = box.m_maxs.z - startPos.z;
+	tRangeZ.StretchToIncludeValue(maxLenFrac * (deltaZ / fwrdNormal.z));
+
+	if (!tRangeX.IsOverlapping(tRangeY) || !tRangeX.IsOverlapping(tRangeZ) || !tRangeY.IsOverlapping(tRangeZ))
+		return result;
+
+	float tHit = fmaxf(tRangeX.m_min, tRangeY.m_min);
+	tHit = fmaxf(tHit, tRangeZ.m_min);
+
+	result.m_impactDistance = tHit * maxDist;
+	result.m_impactPos = startPos + (fwrdNormal * result.m_impactDistance);
+	result.m_didImpact = true;
+
+	if (tHit == tRangeX.m_min)
+	{
+		if (fwrdNormal.x >= 0.f)
+		{
+			result.m_impactNormal = -Vec3::FORWARD;
+			return result;
+		}
+
+		else
+		{
+			result.m_impactNormal = Vec3::FORWARD;
+			return result;
+		}
+
+	}
+
+	else if (tHit == tRangeY.m_min)
+	{
+		if (fwrdNormal.y >= 0.f)
+		{
+			result.m_impactNormal = -Vec3::LEFT;
+			return result;
+		}
+
+		else
+		{
+			result.m_impactNormal = Vec3::LEFT;
+			return result;
+		}
+	}
+
+	else
+	{
+		if (fwrdNormal.z >= 0.f)
+		{
+			result.m_impactNormal = -Vec3::UP;
+			return result;
+		}
+
+		else
+		{
+			result.m_impactNormal = Vec3::UP;
+			return result;
+		}
+	}
+}
+
+RaycastResult3D RaycastVsAABB3D(Vec3 const& startPos, Vec3 const& endPosition, AABB3 const& box)
+{
+	Vec3 disp = endPosition - startPos;
+	float maxDist = disp.GetLength();
+	if (maxDist == 0.f || maxDist == 1.f) RaycastResult3D();;
+	float scale = 1.f / maxDist;
+	Vec3 fwrdNormal = disp * scale;
+
+	RaycastResult3D result;
+	result.m_didImpact = false;
+	result.m_impactNormal = fwrdNormal;
+	result.m_impactPos = endPosition;
+	result.m_impactDistance = maxDist;
+
+	if (box.IsPointOnOrInside(startPos))
+	{
+		result.m_didImpact = true;
+		result.m_impactNormal = -fwrdNormal;
+		result.m_impactDistance = 0.f;
+		result.m_impactPos = startPos;
+		return result;
+	}
+
+	AABB3 rayBounds(startPos, startPos);
+	rayBounds.StretchToIncludePoint(endPosition);
 
 	if (!DoAABB3sOverlap3D(box, rayBounds))
 		return result;
@@ -2171,7 +2527,6 @@ RaycastResult3D RaycastVsOBB3D(Ray3 const& ray, OBB3 const& orientedBox)
 	return result;
 }
 
-
 RaycastResult3D RaycastVsZCylinder3D(Ray3 const& ray, ZCylinder3D const& cylinder)
 {
 	RaycastResult3D result;
@@ -2257,7 +2612,7 @@ RaycastResult3D RaycastVsPlane3D(Ray3 const& ray, Plane3D const& plane)
 	result.m_didImpact = false;
 	result.m_impactDistance = ray.m_maxLength;
 	result.m_impactNormal = ray.m_fwrdNormal;
-	result.m_impactPos = ray.m_fwrdNormal * ray.m_maxLength;
+	result.m_impactPos = ray.m_startPos + (ray.m_fwrdNormal * ray.m_maxLength);
 
 	Vec3 rayEndPos = ray.m_startPos + (ray.m_fwrdNormal * ray.m_maxLength);
 
@@ -2285,6 +2640,23 @@ RaycastResult3D RaycastVsPlane3D(Ray3 const& ray, Plane3D const& plane)
 	}
 
 	return result;
+}
+
+Ray3 GetRayFromMousePosition(Vec2 const& mouseUV, Camera const* camera, float maxLength)
+{
+	Vec2 screenPos = RangeMap(mouseUV, Vec2::ZERO, Vec2::ONE, Vec2(-1.f, -1.f), Vec2(1.f, 1.f));
+	float nearPlaneHeight = 2.f * camera->GetPerspectiveNearDistance() * tanf(camera->GetFOV() / 2.f);
+	float nearPlaneWidth = nearPlaneHeight * camera->GetAspect();
+	float yDir = screenPos.x * (nearPlaneWidth / 2.f);
+	float zDir = -(screenPos.y * (nearPlaneHeight / 2.f));
+	Vec3 iForward = Vec3(1.f, yDir, zDir).GetNormalized();
+	Mat44 cameraTransform = camera->GetOrientation().GetAsMatrix_IFwd_JLeft_KUp();
+	Ray3 ray;
+	ray.m_fwrdNormal = cameraTransform.TransformVectorQuantity3D(iForward).GetNormalized();
+	ray.m_startPos = camera->GetPosition();
+	float farDistance = camera->GetPerspectiveFarDistance();
+	ray.m_maxLength = maxLength == -1.f ? farDistance : maxLength;
+	return ray;
 }
 
 float ComputeCubicBezier1D(float A, float B, float C, float D, float t)
@@ -2381,6 +2753,21 @@ float SmoothStep5(float t)
 	return t * t * t * (t * ((6.f * t) - 15.f) + 10.f);
 }
 
+float SmoothStep3Range(float value, float start, float end)
+{
+	if (value <= start)
+	{
+		return 0.f;
+	}
+	if (value >= end)
+	{
+		return 1.f;
+	}
+
+	float t = (value - start) / (end - start);
+	return t * t * (3.f - (2.f * t));
+}
+
 float Hesitate3(float t)
 {
 	float s = 1 - t;
@@ -2391,6 +2778,24 @@ float Hesitate5(float t)
 {
 	float s = 1 - t;
 	return (5.f * t * (s * s * s * s)) + (10.f * (t * t * t) * (s * s)) + (t * t * t * t * t);
+}
+
+float SmoothMin(float a, float b, float t)
+{
+	float h = GetClamped((0.5f + (0.5f * ((b - a) / t))), 0.0f, 1.0f);
+	return (Lerp(b, a, h) - (t * h * (1.0f - h)));
+}
+
+float SmoothMax(float a, float b, float t)
+{
+	return -SmoothMin(-a, -b, t);
+}
+
+float SmoothPulse3(float value, float start, float riseEnd, float fallStart, float end)
+{
+	float rise = SmoothStep3Range(value, start, riseEnd);
+	float fall = 1.f - SmoothStep3Range(value, fallStart, end);
+	return rise * fall;
 }
 
 

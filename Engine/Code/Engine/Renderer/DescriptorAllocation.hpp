@@ -16,15 +16,11 @@ class DescriptorAllocatorPage;
 class DescriptorAllocation
 {
 public:
-	// Creates a NULL descriptor.
-	DescriptorAllocation();
-
+	DescriptorAllocation(); // Creates a NULL descriptor.
 	DescriptorAllocation(D3D12_CPU_DESCRIPTOR_HANDLE descriptor, uint32_t numHandles, uint32_t descriptorSize, std::shared_ptr<DescriptorAllocatorPage> page);
-
-	// The destructor will automatically free the allocation.
 	~DescriptorAllocation();
-
-	// Copies are not allowed.
+	
+	//Copies are not allowed
 	DescriptorAllocation(const DescriptorAllocation&) = delete;
 	DescriptorAllocation& operator=(const DescriptorAllocation&) = delete;
 
@@ -36,7 +32,7 @@ public:
 	bool IsNull() const;
 
 	// Get a descriptor at a particular offset in the allocation.
-	D3D12_CPU_DESCRIPTOR_HANDLE GetDescriptorHandle(uint32_t offset = 0) const;
+	D3D12_CPU_DESCRIPTOR_HANDLE GetCPUDescriptorHandle(uint32_t offset = 0) const;
 
 	// Get the number of (consecutive) handles for this allocation.
 	uint32_t GetNumHandles() const;
@@ -85,18 +81,11 @@ struct FreeBlockInfo
 
 struct StaleDescriptorInfo
 {
-	StaleDescriptorInfo(OffsetType offset, SizeType size, uint64_t frame)
-		: m_offset(offset)
-		, m_size(size)
-		, m_frameNumber(frame)
-	{}
-
-	// The offset within the descriptor heap.
-	OffsetType m_offset;
-	// The number of descriptors
-	SizeType m_size;
-	// The frame number that the descriptor was freed.
-	uint64_t m_frameNumber;
+	StaleDescriptorInfo(OffsetType offset, SizeType size, uint64_t frame);
+	
+	OffsetType	m_offset; // The offset within the descriptor heap.
+	SizeType	m_size; // The number of descriptors
+	uint64_t	m_frameNumber; // The frame number that the descriptor was freed.
 };
 
 class DescriptorAllocatorPage : public std::enable_shared_from_this<DescriptorAllocatorPage>
@@ -115,16 +104,9 @@ public:
 
 protected:
 
-	// Compute the offset of the descriptor handle from the start of the heap.
-	uint32_t					ComputeOffset(D3D12_CPU_DESCRIPTOR_HANDLE handle);
-
-	// Adds a new block to the free list.
-	void						AddNewBlock(uint32_t offset, uint32_t numDescriptors);
-
-	// Free a block of descriptors.
-	// This will also merge free blocks in the free list to form larger blocks
-	// that can be reused.
-	void						FreeBlock(uint32_t offset, uint32_t numDescriptors);
+	uint32_t					ComputeOffset(D3D12_CPU_DESCRIPTOR_HANDLE handle); // Compute the offset of the descriptor handle from the start of the heap.
+	void						AddNewBlock(uint32_t offset, uint32_t numDescriptors); // Adds a new block to the free list.
+	void						FreeBlock(uint32_t offset, uint32_t numDescriptors); // Free a block of descriptors.This will also merge free blocks in the free list to form larger blocks that can be reused.
 
 private:
 	D3D12_CPU_DESCRIPTOR_HANDLE GetDescriptorHandle(uint32_t index) const;
@@ -147,32 +129,28 @@ private:
 };
 
 
-
 //Descriptor Allocator
 //--------------------------------------------------------------------------------------------------------------
 class DescriptorAllocator
 {
 public:
 	DescriptorAllocator(D3D12_DESCRIPTOR_HEAP_TYPE type, RendererDX12 const* renderer, uint32_t numDescriptorsPerHeap = 256 );
-	virtual ~DescriptorAllocator() {};
+	virtual ~DescriptorAllocator();
 
 	DescriptorAllocation		Allocate(uint32_t numDescriptors = 1);
 	void						ReleaseDescriptors(uint64_t frameNumber);
 
 private:
-	using DescriptorHeapPool = std::vector< std::shared_ptr<DescriptorAllocatorPage> >;
+	std::shared_ptr<DescriptorAllocatorPage> CreateAllocatorPage(); // Create a new heap with a specific number of descriptors.
 
-	// Create a new heap with a specific number of descriptors.
-	std::shared_ptr<DescriptorAllocatorPage> CreateAllocatorPage();
+private:
+	using DescriptorHeapPool = std::vector< std::shared_ptr<DescriptorAllocatorPage> >;
 
 	D3D12_DESCRIPTOR_HEAP_TYPE		m_heapType;
 	uint32_t						m_numDescriptorsPerHeap;
 	DescriptorHeapPool				m_heapPool;
-
-	// Indices of available heaps in the heap pool.
-	std::set<size_t>				m_availableHeaps;
-
+	std::set<size_t>				m_availableHeaps; // Indices of available heaps in the heap pool.
 	std::mutex						m_allocationMutex;
-	RendererDX12 const*					m_renderer = nullptr;
+	RendererDX12 const*				m_renderer = nullptr;
 };
 

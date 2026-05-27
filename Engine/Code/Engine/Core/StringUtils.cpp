@@ -43,10 +43,6 @@ const std::string Stringf( int maxLength, char const* format, ... )
 	return returnValue;
 }
 
-const std::string Vec3toString(Vec3 const& vector3)
-{
-	return Stringf(" %.2f, %.2f, %.2f ", vector3.x, vector3.y, vector3.z);
-}
 
 Strings SplitStringOnDelimiter(std::string const& originalString, char delimiterToSplitOn, bool cutOutLeadingAndTrailingWhiteSpace)
 {
@@ -83,7 +79,7 @@ Strings SplitStringOnFirstDelimiter(std::string const& originalString, char deli
 
 	if (firstDelimPos < originalString.length()) // checks to make sure delimiter actually existed in the string
 	{
-		stringToAdd = std::string(originalString, firstDelimPos, originalString.length());
+		stringToAdd = std::string(originalString, firstDelimPos + 1, originalString.length());
 		splitStrings.push_back(stringToAdd);
 	}
 
@@ -289,6 +285,16 @@ int GetIndexOfLastChar(std::string const& inputString, char charToFind)
 {
 	size_t index = inputString.find_last_of(charToFind);
 	return (int)index;
+}
+
+float GetStringAsFloat(std::string const& inputString)
+{
+	return (float)atof(inputString.c_str());
+}
+
+int GetStringAsInt(std::string const& inputString)
+{
+	return (int)atoi(inputString.c_str());
 }
 
 

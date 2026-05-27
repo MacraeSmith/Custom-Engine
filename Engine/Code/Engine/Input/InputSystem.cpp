@@ -57,13 +57,14 @@ void InputSystem::Startup()
 		m_xBoxControllers[controllerIndex].m_controllerID = controllerIndex;
 	}
 
-	g_eventSystem->SubscribeEventCallbackFunction("KeyPressed", InputSystem::Event_KeyPressed);
-	g_eventSystem->SubscribeEventCallbackFunction("KeyReleased", InputSystem::Event_KeyReleased);
-	g_eventSystem->SubscribeEventCallbackFunction("MouseWheelScrolled", InputSystem::Event_MouseWheelTurned);
+	SubscribeEventCallbackObjectMethod("KeyPressed", this, &InputSystem::Event_KeyPressed, false);
+	SubscribeEventCallbackObjectMethod("KeyReleased", this, &InputSystem::Event_KeyReleased, false);
+	SubscribeEventCallbackObjectMethod("MouseWheelScrolled", this, &InputSystem::Event_MouseWheelTurned, false);
 }
 
 void InputSystem::Shutdown()
 {
+	UnsubscribeAllEventCallbacksForObject(this);
 }
 
 void InputSystem::BeginFrame()
@@ -74,31 +75,30 @@ void InputSystem::BeginFrame()
 	}
 
 	//Cursor point last frame
-	IntVec2 clientPosLastFrame = m_cursorState.m_cursorClientPosition;
+	IntVec2 cursorPosLastFame = m_cursorState.m_cursorClientPosition;
 
 	//Handle cursor visibility
 	PCURSORINFO cursorInfo{};
-	bool visibleCursor = (GetCursorInfo(cursorInfo) && cursorInfo->flags & CURSOR_SHOWING);
+	bool visibleCursor = (GetCursorInfo(cursorInfo) && (cursorInfo->flags & CURSOR_SHOWING) != 0 );
 	bool inPointerMode = m_cursorState.m_cursorMode == CursorMode::POINTER;
-	if (visibleCursor != inPointerMode)
+	if (!visibleCursor && inPointerMode)
 	{
 		while (ShowCursor(TRUE) < 0) {}
 	}
 
-	else
+	else if(visibleCursor && !inPointerMode)
 	{
 		while (ShowCursor(FALSE) >= 0) {}
 	}
+
 	
 	POINT cursorPoint;	
 	if (Window::s_mainWindow->IsWindowActive() && GetCursorPos(&cursorPoint) && m_cursorState.m_cursorMode == CursorMode::FPS)
 	{
-		IntVec2 clientPos((int)cursorPoint.x, (int)cursorPoint.y);
-		m_cursorState.m_cursorClientDelta = clientPos - clientPosLastFrame;
-		IntVec2 clientDims = Window::s_mainWindow->GetClientDimensions();
-		int centerX = (int)((float)clientDims.x * 0.5f);
-		int centerY = (int)((float)clientDims.y * 0.5f);
-		SetCursorPos(centerX, centerY);
+		IntVec2 cursorPos((int)cursorPoint.x, (int)cursorPoint.y);
+		m_cursorState.m_cursorClientDelta = cursorPos - cursorPosLastFame;
+		Window::s_mainWindow->SetMouseToCenter();
+		
 		GetCursorPos(&cursorPoint);
 		m_cursorState.m_cursorClientPosition = IntVec2((int)cursorPoint.x, (int)cursorPoint.y);
 	}
@@ -211,36 +211,21 @@ float InputSystem::GetWheelDelta() const
 
 bool InputSystem::Event_KeyPressed(EventArgs& args)
 {
-	if (g_inputSystem == nullptr)
-	{
-		return false;
-	}
-
-	unsigned char keyCode = (unsigned char)args.GetValue("KeyCode", -1, true);
-	g_inputSystem->HandleKeyPressed(keyCode);
+ 	unsigned char keyCode = args.GetValue("KeyCode", (unsigned char)1);
+	HandleKeyPressed(keyCode);
 	return true;
 }
 
 bool InputSystem::Event_KeyReleased(EventArgs& args)
 {
-	if (g_inputSystem == nullptr)
-	{
-		return false;
-	}
-
-	unsigned char keyCode = (unsigned char)args.GetValue("KeyCode", -1, true);
-	g_inputSystem->HandleKeyReleased(keyCode);
+	unsigned char keyCode = args.GetValue("KeyCode", (unsigned char)1);
+	HandleKeyReleased(keyCode);
 	return true;
 }
 
 bool InputSystem::Event_MouseWheelTurned(EventArgs& args)
 {
-	if (!g_inputSystem)
-	{
-		return false;
-	}
-
-	float wheelDelta = args.GetValue("MouseWheelDelta", 0.f, true);
-	g_inputSystem->SetWheelDelta(wheelDelta);
+	float wheelDelta = args.GetValue("MouseWheelDelta", 0.f);
+	SetWheelDelta(wheelDelta);
 	return true;
 }

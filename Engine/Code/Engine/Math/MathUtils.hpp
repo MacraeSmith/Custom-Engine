@@ -16,6 +16,10 @@ struct Mat44;
 struct ZCylinder3D;
 struct OBB3;
 struct Plane3D;
+struct Plane2D;
+struct ConvexHull2;
+class Camera;
+struct Frustum;
 
 struct Ray2
 {
@@ -73,17 +77,41 @@ constexpr float pi = 3.14159265358979323846f;
 
 //--------------------------------------------------------------------
 //Clamp and lerp
-float GetClamped(float value, float minValue, float maxValue);
-int GetClampedInt(int value, int minValue, int maxValue);
-float GetClampedZeroToOne(float value);
-float Lerp(float start, float end, float fractionTowardEnd);
-Vec2 Lerp(Vec2 const& start, Vec2 const& end, float fractionTowardEnd, bool normalize = false);
-Vec3 Lerp(Vec3 const& start, Vec3 const& end, float fractionTowardEnd, bool normalize = false);
-float GetFractionWithinRange(float value, float rangeStart, float rangeEnd);
-float GetClampedFractionWithinRange(float value, float rangeStart, float rangeEnd);
-float RangeMap(float inValue, float inStart, float inEnd, float outStart, float outEnd);
-float RangeMapClamped(float inValue, float inStart, float inEnd, float outStart, float outEnd);
-int RoundDownToInt(float value);
+float		GetClamped(float value, float minValue, float maxValue);
+int			GetClampedInt(int value, int minValue, int maxValue);
+float		GetClampedZeroToOne(float value);
+template<typename T>
+T Lerp(T start, T end, float t)
+{
+	return start + (t * (end - start));
+}
+float		Lerp(float start, float end, float fractionTowardEnd);
+Vec2		Lerp(Vec2 const& start, Vec2 const& end, float fractionTowardEnd, bool normalize = false);
+Vec3		Lerp(Vec3 const& start, Vec3 const& end, float fractionTowardEnd, bool normalize = false);
+float		LerpAngleDegrees(float a, float b, float t);
+float		GetFractionWithinRange(float value, float rangeStart, float rangeEnd);
+template<typename T>
+float GetFractionWithinRange(T value, T rangeStart, T rangeEnd)
+{
+	return (value - rangeStart) / (rangeEnd - rangeStart);
+}
+float		GetClampedFractionWithinRange(float value, float rangeStart, float rangeEnd);
+float		RangeMapFrom01toNeg11(float value);
+float		RangeMap(float inValue, float inStart, float inEnd, float outStart, float outEnd);
+float		RangeMapClamped(float inValue, float inStart, float inEnd, float outStart, float outEnd);
+Vec2		RangeMap(Vec2 const& inValue, Vec2 const& inStart, Vec2 const& inEnd, Vec2 const& outStart, Vec2 const& outEnd);
+int			RoundToNearestInt(float value);
+int			RoundDownToInt(float value);
+template<typename T>
+T GetMax(T a, T b)
+{
+	return a > b ? a : b;
+}
+
+float		GetMin(float a, float b);
+int			GetMin(int a, int b);
+unsigned int GetMin(unsigned int a, unsigned int b);
+int			GetGreatestCommonDivisor(int a, int b);
 
 //--------------------------------------------------------------------
 //Angle utilities
@@ -182,6 +210,12 @@ bool DoSphereAndPlane3Overlap3D(Vec3 const& sphereCenter, float sphereRadius, Pl
 bool DoAABB3AndPlane3Overlap3D(AABB3 const& box, Plane3D const& plane);
 bool DoOBB3AndPlane3Overlap3D(OBB3 const& orientedBox, Plane3D const& plane);
 
+bool DoPlanes2DIntersect(Vec2& out_intersectionPoint, Plane2D const& a, Plane2D const& b);
+
+//Frustrum Functions
+bool IsSphereInViewFrustum(Vec3 const& sphereCenter, float sphereRadius, Frustum const& frustum);
+bool IsAABB3inViewFrustum(AABB3 const& bounds, Frustum const& frustum);
+
 bool PushDiscOutOfFixedPoint2D(Vec2& mobileDiscCenter, float mobileDiscRadius, Vec2 const& fixedPoint);
 bool PushPointOutOfFixedDisc2D(Vec2& point, Vec2 const& fixedDiscCenter, float fixedDiscRadius);
 bool PushDiscOutOfFixedDisc2D(Vec2& mobileDiscCenter, float mobileDiscRadius, Vec2 const& fixedDiscCenter, float fixedDiscRadius);
@@ -216,13 +250,18 @@ RaycastResult2D RaycastVsTileHeatMap(Ray2 const& ray, TileHeatMap const& solidMa
 RaycastResult2D RaycastVsLineSegment2D(Ray2 const& ray, LineSegment2 const& lineSegment);
 RaycastResult2D RaycastVsAABB2D(Ray2 const& ray, AABB2 const& alignedBox);
 RaycastResult2D RaycastVsOBB2D(Ray2 const& ray, OBB2 const& orientedBox);
+RaycastResult2D RaycastVsPlane2D(Ray2 const& ray, Plane2D const& plane);
+RaycastResult2D RaycastVsConvexHull2(Ray2 const& ray, ConvexHull2 const& convexHull);
 
 RaycastResult3D RaycastVsSphere3D(Ray3 const& ray, Vec3 const& sphereCenter, float sphereRadius);
 RaycastResult3D RaycastVsAABB3D(Ray3 const& ray, AABB3 const& box);
 RaycastResult3D RaycastVsAABB3D(Vec3 const& startPos, Vec3 const& fwrdNormal, float maxDist, AABB3 const& box);
+RaycastResult3D RaycastVsAABB3D(Vec3 const& startPos, Vec3 const& endPosition, AABB3 const& box);
 RaycastResult3D RaycastVsOBB3D(Ray3 const& ray, OBB3 const& orientedBox);
 RaycastResult3D RaycastVsZCylinder3D(Ray3 const& ray, ZCylinder3D const& cylinder);
 RaycastResult3D RaycastVsPlane3D(Ray3 const& ray, Plane3D const& plane);
+
+Ray3 GetRayFromMousePosition(Vec2 const& mouseUV, Camera const* camera, float maxLength = -1.f);
 
 //--------------------------------------------------------------------
 //Curves
@@ -248,8 +287,15 @@ float SmoothStop6(float t);
 float SmoothStep3(float t);
 float SmoothStep5(float t);
 
+float SmoothStep3Range(float value, float start, float end);
+
 float Hesitate3(float t);
 float Hesitate5(float t);
+
+float SmoothMin(float a, float b, float t);
+float SmoothMax(float a, float b, float t);
+
+float SmoothPulse3(float value, float start, float riseEnd, float fallStart, float end);
 
 
 //--------------------------------------------------------------------

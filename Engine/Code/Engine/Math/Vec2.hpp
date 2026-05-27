@@ -1,4 +1,5 @@
 #pragma once
+#include <string>
 
 struct IntVec2;
 //-----------------------------------------------------------------------------------------------
@@ -24,6 +25,7 @@ public:
 	Vec2( const Vec2& copyFrom );							// copy constructor (from another vec2)
 	explicit Vec2(IntVec2 const& copyFromIntVec2);
 	explicit Vec2( float initialX, float initialY );		// explicit constructor (from x, y)
+	explicit Vec2(int initialX, int initialY);
 	
 	//Static methods (e.g creation functions)
 	//-----------------------------------------------------------------------------------------------
@@ -34,6 +36,8 @@ public:
 	//Static methods for getting orientation from an input x and y without having to make a new vec2
 	static float const GetOrientationRadians(float inputX, float inputY);
 	static float const GetOrientationDegrees(float inputX, float inputY); 
+	static float const GetPolarAngleAboutPoint(Vec2 const& point, Vec2 const& origin);
+	static bool ArePointsColinear(Vec2 const& prev, Vec2 const& curr, Vec2 const& next);
 
 	//Accessors (const methods)
 	//-----------------------------------------------------------------------------------------------
@@ -50,15 +54,18 @@ public:
 	Vec2 const GetRotatedDegrees(float deltaDegrees) const;
 	Vec2 const GetRotatedRadians(float deltaRadians) const;
 
+
 	Vec2 const GetClamped(float maxLength) const;
 	Vec2 const GetClamped(float minLength, float maxLength) const; //clamp with max and min
 
 	Vec2 const GetNormalized() const;
 	Vec2 const GetReflected(Vec2 const& normalOfSurfaceToReflectOffOf) const;
 
+	std::string GetAsText(int numDecimals = 2) const;
+
 	//Mutators (non-const methods)
 	//-----------------------------------------------------------------------------------------------
-	void SetFromText(char const* text);
+	void SetFromText(char const* text, char delimiterToSplitOn = ',');
 	void SetOrientationRadians(float newOrientationRadians);
 	void SetOrientationDegrees(float newOrientationDegrees);
 	void SetPolarRadians(float newOrientationRadians, float newLength);

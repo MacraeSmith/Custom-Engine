@@ -16,7 +16,7 @@ public:
 
 	unsigned int GetStride() const;
 	unsigned int GetSize() const;
-	unsigned int GetCount() const;
+	unsigned int GetNumIndexes() const;
 
 private:
 	ID3D11Buffer* m_buffer = nullptr;

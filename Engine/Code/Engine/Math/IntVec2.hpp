@@ -1,4 +1,5 @@
 #pragma once
+#include <string>
 
 struct Vec2;
 //-----------------------------------------------------------------------------------------------
@@ -16,6 +17,10 @@ public: // NOTE: this is one of the few cases where we break both the "m_" namin
 	static const IntVec2 EAST;
 	static const IntVec2 SOUTH;
 	static const IntVec2 WEST;
+	static const int NUM_DIRECTIONS_N_E_S_W_NE_SE_SW_NW;
+	static const IntVec2 DIRECTIONS_N_E_S_W_NE_SE_SW_NW[8];
+	static const int NUM_DIRECTIONS_N_E_S_W;
+	static const IntVec2 DIRECTIONS_N_E_S_W[4];
 
 public:
 	// Construction/Destruction
@@ -35,6 +40,7 @@ public:
 	float const GetOrientationDegrees() const;
 	IntVec2 const GetRotated90Degrees() const;
 	IntVec2 const GetRotatedMinus90Degrees() const;
+	std::string GetAsText() const;
 
 	//Mutators (non-const methods)
 	//-----------------------------------------------------------------------------------------------

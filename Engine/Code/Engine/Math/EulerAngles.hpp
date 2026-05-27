@@ -1,7 +1,9 @@
 #pragma once
+#include <string>
 
 struct Vec3;
 struct Mat44;
+class RandomNumberGenerator;
 
 struct EulerAngles
 {
@@ -22,7 +24,10 @@ public:
 	Vec3 Get_JLeft() const;
 	Vec3 Get_KUp() const;
 
+	std::string GetAsText(int numDecimals = 2) const;
 	void SetFromText(char const* text);
+
+	static EulerAngles GetRandomOrientation(RandomNumberGenerator* rng, bool ignoreRoll);
 
 	//Operators (const)
 	const EulerAngles operator*(float uniformScale) const;

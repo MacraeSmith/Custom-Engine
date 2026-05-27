@@ -10,10 +10,12 @@ typedef tinyxml2::XMLError XmlResult;
 
 struct Rgba8;
 struct IntVec2;
+struct IntVec3;
 struct Vec2;
 struct Vec3;
 struct EulerAngles;
 struct FloatRange;
+struct IntRange;
 
 int ParseXmlAttribute(XmlElement const& element, char const* attributeName, int defaultValue);
 char ParseXmlAttribute(XmlElement const& element, char const* attributeName, char defaultValue);
@@ -24,7 +26,9 @@ Vec2 ParseXmlAttribute(XmlElement const& element, char const* attributeName, Vec
 Vec3 ParseXmlAttribute(XmlElement const& element, char const* attributeName, Vec3 const& defaultValue);
 EulerAngles ParseXmlAttribute(XmlElement const& element, char const* attributeName, EulerAngles const& defaultValue);
 FloatRange ParseXmlAttribute(XmlElement const& element, char const* attributeName, FloatRange const& defaultValue);
+IntRange ParseXmlAttribute(XmlElement const& element, char const* attributeName, IntRange const& defaultValue);
 IntVec2 ParseXmlAttribute(XmlElement const& element, char const* attributeName, IntVec2 const& defaultValue);
+IntVec3 ParseXmlAttribute(XmlElement const& element, char const* attributeName, IntVec3 const& defaultValue);
 std::string ParseXmlAttribute(XmlElement const& element, char const* attributeName, std::string const& defaultValue);
 Strings ParseXmlAttribute(XmlElement const& element, char const* attributeName, Strings const& defaultValues, char delimiter = ',');
 std::string ParseXmlAttribute(XmlElement const& element, char const* attributeName, char const* defaultValue);

@@ -2,6 +2,7 @@
 #include "Engine/Core/StringUtils.hpp"
 #include "Engine/Math/Vec2.hpp"
 #include "Engine/Math/RandomNumberGenerator.hpp"
+#include "Engine/Math/MathUtils.hpp"
 
 FloatRange const FloatRange::ZERO = FloatRange();
 FloatRange const FloatRange::ONE = FloatRange(1.f, 1.f);
@@ -62,6 +63,14 @@ float FloatRange::GetRandomValueInRange(RandomNumberGenerator* randomNumberGener
 	return rng.RollRandomFloatInRange(m_min, m_max);
 }
 
+std::string FloatRange::GetAsText(int numDecimals) const
+{
+	numDecimals = GetClampedInt(numDecimals, 0, 10);
+	char format[64];
+	std::snprintf(format, sizeof(format), "%%.%df~%%.%df", numDecimals, numDecimals);
+	return Stringf(format, m_min, m_max);
+}
+
 void FloatRange::SetFromText(char const* text)
 {
 	Strings numsFromText = SplitStringOnDelimiter(text, '~');
@@ -80,6 +89,11 @@ void FloatRange::StretchToIncludeValue(float value)
 	{
 		m_max = value;
 	}
+}
+
+float FloatRange::FloatRangeLerp(float t) const
+{
+	return Lerp(m_min, m_max, t);
 }
 
 bool FloatRange::operator==(const FloatRange& compare) const

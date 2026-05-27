@@ -4,12 +4,12 @@
 #include "Engine/Renderer/RendererDX12.hpp"
 #include "Engine/Renderer/CommandList.hpp"
 #include "Engine/Renderer/ResourceStateTracker.hpp"
-
+#include "Engine/Renderer/ResourceDX12.hpp"
+#include "Engine/Math/MathUtils.hpp"
 #include <cassert>
 
 
-
-CommandQueue::CommandQueue(RendererDX12 const* renderer, D3D12_COMMAND_LIST_TYPE type)
+CommandQueue::CommandQueue(RendererDX12* renderer, D3D12_COMMAND_LIST_TYPE type)
 	: m_renderer(renderer)
 	, m_fenceValue(0)
 	, m_commandListType(type)
@@ -53,18 +53,19 @@ CommandQueue::CommandQueue(RendererDX12 const* renderer, D3D12_COMMAND_LIST_TYPE
 		break;
 	}
 
-	std::string commandQueueName = Stringf("CommandQueue_%s", typeText.c_str());
-	SetCommandQueueName(m_d3d12CommandQueue, commandQueueName);
+	m_name = Stringf("CommandQueue_%s", typeText.c_str());
+	SetCommandQueueName(m_d3d12CommandQueue, m_name);
 
 	hr = device->CreateFence(m_fenceValue, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&m_d3d12Fence));
 
-	std::string fenceName = Stringf("%s_m_fence", commandQueueName.c_str());
+	std::string fenceName = Stringf("%s_m_fence", m_name.c_str());
 	SetFenceName(m_d3d12Fence, fenceName);
 	GUARANTEE_OR_DIE(SUCCEEDED(hr), "could not create Fence");
 
 	m_ProcessInFlightCommandListsThread = std::thread(&CommandQueue::ProcessInFlightCommandLists, this);
 
-	InitializeCommandLists(commandQueueName);
+	InitializeCommandLists(m_name);
+
 }
 
 CommandQueue::~CommandQueue()
@@ -72,22 +73,45 @@ CommandQueue::~CommandQueue()
 	m_bProcessInFlightCommandLists = false;
 	m_ProcessInFlightCommandListsThread.join();
 
+	WaitForFenceValue(Signal());
+
+	CommandListEntry entry;
+	while (m_InFlightCommandLists.TryPop(entry))
+	{
+		uint64_t fenceValue = std::get<0>(entry);
+		CommandList* commandList = std::get<1>(entry);
+
+		// Optional safety: ensure GPU is done with it
+		WaitForFenceValue(fenceValue);
+
+		delete commandList;
+	}
+
 	CommandList* commandList = nullptr;
 	while (m_AvailableCommandLists.TryPop(commandList))
 	{
 		delete commandList;
 	}
+	uint64_t completedFenceValue = m_d3d12Fence->GetCompletedValue();
+	TryToReleaseDeferredResources(completedFenceValue);
+
 	
-	m_renderer = nullptr;
+
+	for (int i = 0; i < (int)m_deferredResourceReleases.size(); ++i)
+	{
+		DX_SAFE_RELEASE(m_deferredResourceReleases[i].m_resource);
+	}
+	m_deferredResourceReleases.clear();
+
 	DX_SAFE_RELEASE(m_d3d12Fence);
 	DX_SAFE_RELEASE(m_d3d12CommandQueue);
+	m_renderer = nullptr;
 }
 
 CommandList* CommandQueue::GetCommandList()
 {
 	CommandList* commandList = nullptr;
 
-	// If there is a command list on the queue.
 	if (!m_AvailableCommandLists.Empty())
 	{
 		m_AvailableCommandLists.TryPop(commandList);
@@ -114,7 +138,6 @@ CommandList* CommandQueue::GetCommandList()
 
 	return commandList;
 }
-
 
 uint64_t CommandQueue::ExecuteCommandList(CommandList* commandList)
 {
@@ -153,15 +176,9 @@ uint64_t CommandQueue::ExecuteCommandLists(std::vector<CommandList*> const& comm
 
 		toBeQueued.push_back(pendingCommandList);
 		toBeQueued.push_back(commandList);
-
-		//auto generateMipsCommandList = commandList->GetGenerateMipsCommandList();
-		//if (generateMipsCommandList)
-		{
-			//generateMipsCommandLists.push_back(generateMipsCommandList);
-		}
 	}
 
-	UINT numCommandLists = static_cast<UINT>(d3d12CommandLists.size());
+	UINT numCommandLists = static_cast<unsigned int>(d3d12CommandLists.size());
 	m_d3d12CommandQueue->ExecuteCommandLists(numCommandLists, d3d12CommandLists.data());
 	uint64_t fenceValue = Signal();
 
@@ -173,17 +190,6 @@ uint64_t CommandQueue::ExecuteCommandLists(std::vector<CommandList*> const& comm
 		m_InFlightCommandLists.Push({ fenceValue, commandList });
 	}
 
-	/*
-	// If there are any command lists that generate mips then execute those
-	// after the initial resource command lists have finished.
-	if (generateMipsCommandLists.size() > 0)
-	{
-		auto computeQueue = Application::Get().GetCommandQueue(D3D12_COMMAND_LIST_TYPE_COMPUTE);
-		computeQueue->Wait(*this);
-		computeQueue->ExecuteCommandLists(generateMipsCommandLists);
-	}
-	*/
-
 	return fenceValue;
 }
 
@@ -192,6 +198,11 @@ uint64_t CommandQueue::Signal()
 	uint64_t fenceValue = ++m_fenceValue;
 	HRESULT hr = m_d3d12CommandQueue->Signal(m_d3d12Fence, fenceValue);
 	GUARANTEE_OR_DIE(SUCCEEDED(hr), "Failed to signal GPU fence");
+
+	MarkAllQueuedResources(fenceValue);
+
+	uint64_t completedFence = m_d3d12Fence->GetCompletedValue();
+	TryToReleaseDeferredResources(completedFence);
 	return fenceValue;
 }
 
@@ -227,15 +238,73 @@ void CommandQueue::Wait(CommandQueue const& other)
 	m_d3d12CommandQueue->Wait(other.m_d3d12Fence, other.m_fenceValue);
 }
 
+
+void CommandQueue::QueueResourceForMarkedUse(ResourceDX12* resource)
+{
+	for (int i = 0; i < (int)m_resourcesQueuedForMarkedUse.size(); ++i)
+	{
+		if (m_resourcesQueuedForMarkedUse[i] == nullptr)
+		{
+			m_resourcesQueuedForMarkedUse[i] = resource;
+			return;
+		}
+	}
+
+	m_resourcesQueuedForMarkedUse.push_back(resource);
+}
+
+
+void CommandQueue::AddDeferredResourceRelease(ID3D12Resource* resource, uint64_t lastFenceUsed)
+{
+	if (resource == nullptr)
+	{
+		return;
+	}
+
+	for (int i = 0; i < (int)m_deferredResourceReleases.size(); ++i)
+	{
+		if (m_deferredResourceReleases[i].m_resource == resource)
+		{
+			uint64_t previousFence = m_deferredResourceReleases[i].m_fenceValue;
+			m_deferredResourceReleases[i].m_fenceValue = GetMax(previousFence, lastFenceUsed);
+			return;
+		}
+	}
+
+	DeferredResourceRelease deferredRelease = {resource, lastFenceUsed};
+	m_deferredResourceReleases.push_back(deferredRelease);
+}
+
+void CommandQueue::QueueUnMarkedResourceForDeletion(ID3D12Resource* resource)
+{
+	if (resource == nullptr)
+	{
+		return;
+	}
+
+	uint64_t safeFenceValue = Signal();
+
+	for (int i = 0; i < (int)m_deferredResourceReleases.size(); ++i)
+	{
+		if (m_deferredResourceReleases[i].m_resource == resource)
+		{
+			uint64_t previousFence = m_deferredResourceReleases[i].m_fenceValue;
+			m_deferredResourceReleases[i].m_fenceValue = GetMax(previousFence, safeFenceValue);
+			return;
+		}
+	}
+
+	DeferredResourceRelease newDeferredRelease = { resource, safeFenceValue};
+	m_deferredResourceReleases.push_back(newDeferredRelease);
+}
+
 ID3D12CommandQueue* CommandQueue::GetD3D12CommandQueue() const
 {
 	return m_d3d12CommandQueue;
 }
 
-
 void CommandQueue::ProcessInFlightCommandLists()
 {
-
 	while (m_bProcessInFlightCommandLists)
 	{
 		CommandListEntry commandListEntry;
@@ -265,33 +334,6 @@ void CommandQueue::ProcessInFlightCommandLists()
 			std::this_thread::yield();
 		}
 	}
-
-	//vvv older version that does not locks unnecessarily. A lot slower
-	/*
-	std::unique_lock<std::mutex> lock(m_ProcessInFlightCommandListsThreadMutex, std::defer_lock);
-
-	while (m_bProcessInFlightCommandLists)
-	{
-		CommandListEntry commandListEntry;
-
-		lock.lock();
-		while (m_InFlightCommandLists.TryPop(commandListEntry))
-		{
-			auto fenceValue = std::get<0>(commandListEntry);
-			auto commandList = std::get<1>(commandListEntry);
-
-			WaitForFenceValue(fenceValue);
-
-			commandList->Reset();
-
-			m_AvailableCommandLists.Push(commandList);
-		}
-		lock.unlock();
-		m_ProcessInFlightCommandListsThreadCV.notify_one();
-
-		std::this_thread::yield();
-	}
-	*/
 }
 
 void CommandQueue::InitializeCommandLists(std::string const& name)
@@ -299,7 +341,35 @@ void CommandQueue::InitializeCommandLists(std::string const& name)
 	for (int i = 0; i < MAX_NUM_COMMAND_LISTS; ++i)
 	{
 		std::string commandListName = Stringf("%s Command List: %i", name.c_str(), i);
-		CommandList* commandList = new CommandList(m_renderer, m_commandListType, commandListName);
+		CommandList* commandList = new CommandList(m_renderer, this, m_commandListType, commandListName);
 		m_AvailableCommandLists.Push(commandList);
 	}
 }
+
+void CommandQueue::MarkAllQueuedResources(uint64_t const& fenceValue)
+{
+	for (int i = 0; i < (int)m_resourcesQueuedForMarkedUse.size(); ++i)
+	{
+		if (m_resourcesQueuedForMarkedUse[i])
+		{
+			m_resourcesQueuedForMarkedUse[i]->MarkUsed(this, fenceValue);
+			m_resourcesQueuedForMarkedUse[i] = nullptr;
+		}
+	}
+}
+
+void CommandQueue::TryToReleaseDeferredResources(uint64_t const& completedFenceValue)
+{
+	for (int i = 0; i < (int)m_deferredResourceReleases.size(); ++i)
+	{
+		if (m_deferredResourceReleases[i].m_fenceValue <= completedFenceValue)
+		{
+			DX_SAFE_RELEASE(m_deferredResourceReleases[i].m_resource);
+
+			m_deferredResourceReleases.erase(m_deferredResourceReleases.begin() + i);
+			i--;
+		}
+	}
+}
+
+

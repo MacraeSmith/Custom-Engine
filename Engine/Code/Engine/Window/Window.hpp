@@ -13,6 +13,9 @@ struct WindowConfig
 	float m_aspectRatio = (16.f / 9.f);
 	InputSystem* m_inputSystem = nullptr;
 	std::string m_windowTitle = "Unnamed SD Application";
+	float m_windowScale = 0.9f;
+	bool m_fullScreen = false;
+	bool m_usingImGui = false;
 };
 
 class Window
@@ -29,11 +32,16 @@ public:
 
 	WindowConfig const& GetConfig() const;
 	void* const& GetDisplayContext() const;
+	void SetMouseToCenter();
 
 	Vec2 GetNormalizedMouseUV() const;
 	void* GetHwnd() const;
 	IntVec2 GetClientDimensions() const;
+	float GetClientAspect() const;
 	bool IsWindowActive() const;
+	bool IsFullScreen() {return m_config.m_fullScreen;}
+
+	static std::string GetClipboardText();
 
 private:
 	void RunMessagePump();

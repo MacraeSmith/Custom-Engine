@@ -4,14 +4,14 @@
 #include <queue>
 #include <d3d12.h>
 #include <functional>
+#include "Engine/Renderer/RendererDX12.hpp"
 
 class CommandList;
 class RootSignatureDX12;
 class RendererDX12;
 
-/**
- * A structure that represents a descriptor table entry in the root signature.
- */
+
+//A structure that represents a descriptor table entry in the root signature.
 struct DescriptorTableCache
 {
     DescriptorTableCache()
@@ -19,23 +19,20 @@ struct DescriptorTableCache
         , BaseDescriptor(nullptr)
     {}
 
-    // Reset the table cache.
-    void Reset()
+    void Reset()  // Reset the table cache.
     {
         NumDescriptors = 0;
         BaseDescriptor = nullptr;
     }
 
-    // The number of descriptors in this descriptor table.
-    uint32_t NumDescriptors;
-    // The pointer to the descriptor in the descriptor handle cache.
-    D3D12_CPU_DESCRIPTOR_HANDLE* BaseDescriptor;
+    uint32_t NumDescriptors; // The number of descriptors in this descriptor table.
+    D3D12_CPU_DESCRIPTOR_HANDLE* BaseDescriptor; // The pointer to the descriptor in the descriptor handle cache
 };
 
 class DynamicDescriptorHeap
 {
 public:
-	DynamicDescriptorHeap(RendererDX12 const* renderer, D3D12_DESCRIPTOR_HEAP_TYPE heapType, uint32_t numDescriptorsPerHeap = 1024);
+	DynamicDescriptorHeap(RendererDX12 const* renderer, D3D12_DESCRIPTOR_HEAP_TYPE heapType, uint32_t numDescriptorsPerHeap = MAX_NUM_BINDLESS_TEXTURES); // should equal MAX_NUM_BINDLESS_TEXTURES in RendererDX12
 	virtual ~DynamicDescriptorHeap();
 
     #pragma region Explanation...
@@ -101,13 +98,9 @@ public:
     void Reset();
 
 private:
-	// Request a descriptor heap if one is available.
-	ID3D12DescriptorHeap* RequestDescriptorHeap();
-	// Create a new descriptor heap of no descriptor heap is available.
-	ID3D12DescriptorHeap* CreateDescriptorHeap();
-
-	// Compute the number of stale descriptors that need to be copied to GPU visible descriptor heap.
-    uint32_t ComputeStaleDescriptorCount() const;
+	ID3D12DescriptorHeap*   RequestDescriptorHeap(); // Request a descriptor heap if one is available.
+	ID3D12DescriptorHeap*   CreateDescriptorHeap(); // Create a new descriptor heap of no descriptor heap is available.
+    uint32_t                ComputeStaleDescriptorCount() const; // Create a new descriptor heap of no descriptor heap is available.
 
 
 private:
@@ -120,7 +113,7 @@ private:
  * are descriptor tables.
  */
     #pragma endregion
-    static const uint32_t MaxDescriptorTables = 32;
+    static const uint32_t MAX_DESCRIPTOR_TABLES = 32;
     #pragma region Explanation...
 	// Describes the type of descriptors that can be staged using this 
 // dynamic descriptor heap.
@@ -130,35 +123,33 @@ private:
 // This parameter also determines the type of GPU visible descriptor heap to 
 // create.
     #pragma endregion
-	D3D12_DESCRIPTOR_HEAP_TYPE m_DescriptorHeapType;
+	D3D12_DESCRIPTOR_HEAP_TYPE m_descriptorHeapType;
 
 	// The number of descriptors to allocate in new GPU visible descriptor heaps.
-	uint32_t m_NumDescriptorsPerHeap;
+	uint32_t m_numDescriptorsPerHeap;
 
 	// The increment size of a descriptor.
-	uint32_t m_DescriptorHandleIncrementSize;
+	uint32_t m_descriptorHandleIncrementSize;
 
 	// The descriptor handle cache.
-	std::unique_ptr<D3D12_CPU_DESCRIPTOR_HANDLE[]> m_DescriptorHandleCache;
+	std::unique_ptr<D3D12_CPU_DESCRIPTOR_HANDLE[]> m_descriptorHandleCache;
 
 	// Descriptor handle cache per descriptor table.
-	DescriptorTableCache m_DescriptorTableCache[MaxDescriptorTables];
+	DescriptorTableCache m_descriptorTableCache[MAX_DESCRIPTOR_TABLES];
 
 	// Each bit in the bit mask represents the index in the root signature that contains a descriptor table.
-	uint32_t m_DescriptorTableBitMask;
+	uint32_t m_descriptorTableBitMask;
 	// Each bit set in the bit mask represents a descriptor table in the root signature that has changed since the last time the descriptors were copied.
-	uint32_t m_StaleDescriptorTableBitMask;
+	uint32_t m_staleDescriptorTableBitMask;
 
 	using DescriptorHeapPool = std::queue< ID3D12DescriptorHeap* >;
 
-	DescriptorHeapPool m_DescriptorHeapPool;
-	DescriptorHeapPool m_AvailableDescriptorHeaps;
-
-	ID3D12DescriptorHeap* m_CurrentDescriptorHeap = nullptr;
-    D3D12_GPU_DESCRIPTOR_HANDLE  m_CurrentGPUDescriptorHandle;
-    D3D12_CPU_DESCRIPTOR_HANDLE  m_CurrentCPUDescriptorHandle;
-
-	uint32_t m_NumFreeHandles;
+	DescriptorHeapPool              m_descriptorHeapPool;
+	DescriptorHeapPool              m_availableDescriptorHeaps;
+	ID3D12DescriptorHeap*           m_currentDescriptorHeap = nullptr;
+    D3D12_GPU_DESCRIPTOR_HANDLE     m_currentGPUDescriptorHandle;
+    D3D12_CPU_DESCRIPTOR_HANDLE     m_currentCPUDescriptorHandle;
+	uint32_t                        m_numFreeHandles;
 
 };
 

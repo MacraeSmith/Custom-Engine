@@ -2,6 +2,7 @@
 #include "Engine/Math/Vec2.hpp"
 #include "Engine/Math/AABB2.hpp"
 #include "Engine/Math/MathUtils.hpp"
+#include "Engine/Math/RandomNumberGenerator.hpp"
 
 AABB3::AABB3(AABB3 const& copyFrom)
 	:m_mins(copyFrom.m_mins)
@@ -27,11 +28,18 @@ AABB3::AABB3(AABB2 const& xAndYBounds, Vec2 const& zBounds)
 {
 }
 
-bool AABB3::IsPointInside(Vec3 const& point) const
+bool AABB3::IsPointOnOrInside(Vec3 const& point) const
 {
 	return point.x >= m_mins.x && point.x <= m_maxs.x
 		&& point.y >= m_mins.y && point.y <= m_maxs.y
 		&& point.z >= m_mins.z && point.z <= m_maxs.z;
+}
+
+bool AABB3::IsPointInsideBounds(Vec3 const& point) const
+{
+	return point.x > m_mins.x && point.x < m_maxs.x
+		&& point.y > m_mins.y && point.y < m_maxs.y
+		&& point.z > m_mins.z && point.z < m_maxs.z;
 }
 
 Vec3 const AABB3::GetCenterPos() const
@@ -51,6 +59,7 @@ Vec3 const AABB3::GetNearestPoint(Vec3 const& referencePos) const
 	float nearestZ = GetClamped(referencePos.z, m_mins.z, m_maxs.z);
 	return Vec3(nearestX, nearestY, nearestZ);
 }
+
 
 void AABB3::Translate(Vec3 const& translation)
 {
@@ -106,4 +115,12 @@ void AABB3::StretchToIncludePoint(Vec3 const& point)
 	{
 		m_maxs.z = point.z;
 	}
+}
+
+Vec3 AABB3::GetRandomPointInside(RandomNumberGenerator* rng)
+{
+	float x = rng->RollRandomFloatInRange(m_mins.x, m_maxs.x);
+	float y = rng->RollRandomFloatInRange(m_mins.y, m_maxs.y);
+	float z = rng->RollRandomFloatInRange(m_mins.z, m_maxs.z);
+	return Vec3(x,y,z);
 }

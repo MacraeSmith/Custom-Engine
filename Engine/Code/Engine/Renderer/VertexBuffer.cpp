@@ -67,3 +67,8 @@ unsigned int VertexBuffer::GetStride()
 {
 	return m_stride;
 }
+
+unsigned int VertexBuffer::GetCount()
+{
+	return m_size / m_stride;
+}

@@ -26,7 +26,7 @@ void ConstantBuffer::Create()
 {
 	D3D11_BUFFER_DESC bufferDesc = {};
 	bufferDesc.Usage = D3D11_USAGE_DYNAMIC;
-	bufferDesc.ByteWidth = (UINT)m_size;
+	bufferDesc.ByteWidth = (unsigned int)m_size;
 	bufferDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
 	bufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
 

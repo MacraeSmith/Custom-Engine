@@ -2,7 +2,24 @@
 
 #include "Engine/Math/AABB2.hpp"
 #include "Engine/Renderer/SpriteSheet.hpp"
+
+#ifdef RENDERER_DX12
+#include "Engine/Renderer/TextureDX12.hpp"
+
+TextureDX12& SpriteDefinition::GetTexture() const
+{
+	return m_spriteSheet.GetTexture();
+}
+
+#else
 #include "Engine/Renderer/Texture.hpp"
+
+Texture& SpriteDefinition::GetTexture() const
+{
+	return m_spriteSheet.GetTexture();
+}
+
+#endif // RENDERER_DX12
 
 SpriteDefinition::SpriteDefinition(SpriteSheet const& spriteSheet, int spriteIndex, Vec2 const& uvAtMins, Vec2 const& uvAtMaxs)
     :m_spriteSheet(spriteSheet)
@@ -28,16 +45,11 @@ SpriteSheet const& SpriteDefinition::GetSpriteSheet() const
     return m_spriteSheet;
 }
 
-Texture& SpriteDefinition::GetTexture() const
-{
-    return m_spriteSheet.GetTexture();
-}
-
 float SpriteDefinition::GetAspect() const
 {
-    IntVec2 textureDimensions = GetTexture().GetDimensions();
-    float uvDimensionsX = m_uvAtMaxs.x - m_uvAtMins.x;
-    float uvDimensionsY = m_uvAtMaxs.y - m_uvAtMins.y;
+	IntVec2 textureDimensions = GetTexture().GetDimensions();
+	float uvDimensionsX = m_uvAtMaxs.x - m_uvAtMins.x;
+	float uvDimensionsY = m_uvAtMaxs.y - m_uvAtMins.y;
 
-    return uvDimensionsX / uvDimensionsY;
+	return uvDimensionsX / uvDimensionsY;
 }

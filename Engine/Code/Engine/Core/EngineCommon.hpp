@@ -9,10 +9,14 @@
 class EventSystem;
 class DevConsole;
 class InputSystem;
+class NetworkSystem;
+class ImGuiSystem;
 
 extern NamedStrings g_gameConfigBlackboard;
 extern EventSystem* g_eventSystem;
 extern DevConsole* g_devConsole;
 extern InputSystem* g_inputSystem;
+extern NetworkSystem* g_networkSystem;
+extern ImGuiSystem* g_imGuiSystem;
 
 

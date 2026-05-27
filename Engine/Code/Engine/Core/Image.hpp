@@ -8,7 +8,7 @@ class Image
 {
 public:
 	Image(char const* imageFilePath);
-	Image(IntVec2 size, Rgba8 color);
+	Image(IntVec2 size, Rgba8 color, char const* name = "New Image");
 	~Image();
 
 	std::string const& GetImageFilePath() const;

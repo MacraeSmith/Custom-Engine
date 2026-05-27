@@ -2,6 +2,7 @@
 #include "Engine/Core/EngineCommon.hpp"
 #include "Engine/Core/StringUtils.hpp"
 
+
 EventSystem::EventSystem(EventSystemConfig const& config)
 	:m_config(config)
 {
@@ -23,40 +24,42 @@ void EventSystem::EndFrame()
 {
 }
 
-void EventSystem::SubscribeEventCallbackFunction(std::string const& eventName, EventCallbackFunction* function)
+void EventSystem::SubscribeEventCallbackFunction(HashedCaseInsensitiveString const& eventName, EventCallbackFunction* function, bool visibleEvent)
 {
-	EventSubscription newSubscription;
-	newSubscription.m_callbackFunction = function;
-	std::string eventNameLowerCase = GetLowercase(eventName);
-	m_subscriptionListByEventName[eventNameLowerCase].push_back(newSubscription);
+	std::scoped_lock<std::recursive_mutex> lock(m_eventSystemMutex);
+
+	EventFunctionSubscription* newSubscription = new EventFunctionSubscription(function);
+	m_subscriptionListByEventName[eventName].push_back(newSubscription);
 
 	EventInfo eventInfo;
-	eventInfo.m_name = eventNameLowerCase;
-	eventInfo.m_presentationName = eventName;
-	m_eventNameInfoPair[eventNameLowerCase] = eventInfo;
+	eventInfo.m_name = eventName;
+	eventInfo.m_visibleEvent = visibleEvent;
+	m_eventNameInfoPair[eventName] = eventInfo;
 }
 
-void EventSystem::SubscribeEventCallbackFunction(std::string const& eventName, Strings const& argumentFormats, EventCallbackFunction* function)
+void EventSystem::SubscribeEventCallbackFunction(HashedCaseInsensitiveString const& eventName, Strings const& argumentFormats, EventCallbackFunction* function, bool visibleEvent)
 {
-	EventSubscription newSubscription;
-	newSubscription.m_callbackFunction = function;
-	std::string eventNameLowerCase = GetLowercase(eventName);
-	m_subscriptionListByEventName[eventNameLowerCase].push_back(newSubscription);
+	std::scoped_lock<std::recursive_mutex> lock(m_eventSystemMutex);
+
+	EventFunctionSubscription* newSubscription = new EventFunctionSubscription(function);
+
+	m_subscriptionListByEventName[eventName].push_back(newSubscription);
 
 	EventInfo eventInfo;
-	eventInfo.m_name = eventNameLowerCase;
-	eventInfo.m_presentationName = eventName;
+	eventInfo.m_name = eventName;
+	eventInfo.m_visibleEvent = visibleEvent;
 	for (int argumentNum = 0; argumentNum < (int)argumentFormats.size(); ++argumentNum)
 	{
 		eventInfo.m_argumentFormats.push_back(argumentFormats[argumentNum]);
 	}
-	m_eventNameInfoPair[eventNameLowerCase] = eventInfo;
+	m_eventNameInfoPair[eventName] = eventInfo;
 }
 
-void EventSystem::UnsubscribeEventCallbackFunction(std::string const& eventName, EventCallbackFunction* function)
+void EventSystem::UnsubscribeEventCallbackFunction(HashedCaseInsensitiveString const& eventName, EventCallbackFunction* function)
 {
-	std::string eventNameLowerCase = GetLowercase(eventName);
-	auto subscriptionListIter = m_subscriptionListByEventName.find(eventNameLowerCase);
+	std::scoped_lock<std::recursive_mutex> lock(m_eventSystemMutex);
+
+	auto subscriptionListIter = m_subscriptionListByEventName.find(eventName);
 	if (subscriptionListIter == m_subscriptionListByEventName.end())
 		return;
 	
@@ -64,7 +67,8 @@ void EventSystem::UnsubscribeEventCallbackFunction(std::string const& eventName,
 	for (int functionNum = 0; functionNum < 
 		(subList.size()); ++functionNum)
 	{
-		if (subList[functionNum].m_callbackFunction == function)
+		EventFunctionSubscription* subscription = dynamic_cast<EventFunctionSubscription*>(subList[functionNum]);
+		if (subscription && subscription->m_callbackFunction == function)
 		{
 			subList.erase(subList.begin() + functionNum);
 			return;
@@ -72,17 +76,30 @@ void EventSystem::UnsubscribeEventCallbackFunction(std::string const& eventName,
 	}
 }
 
-bool EventSystem::FireEvent(std::string const& eventName, EventArgs& args)
+void EventSystem::UnsubscribeAllEventCallbacks(HashedCaseInsensitiveString const& eventName)
 {
-	std::string eventNameLowerCase = GetLowercase(eventName);
-	auto subscriptionListIter = m_subscriptionListByEventName.find(eventNameLowerCase);
+	std::scoped_lock<std::recursive_mutex> lock(m_eventSystemMutex);
+
+	auto foundEvent = m_subscriptionListByEventName.find(eventName);
+	if (foundEvent != m_subscriptionListByEventName.end())
+	{
+		SubscriptionList& subList = foundEvent->second;
+		subList.clear();
+	}
+}
+
+bool EventSystem::FireEvent(HashedCaseInsensitiveString const& eventName, EventArgs& args)
+{
+	std::scoped_lock<std::recursive_mutex> lock(m_eventSystemMutex);
+
+	auto subscriptionListIter = m_subscriptionListByEventName.find(eventName);
 	if (subscriptionListIter == m_subscriptionListByEventName.end())
 		return false;
 
 	SubscriptionList& subList = subscriptionListIter->second;
 	for (int functionNum = 0; functionNum < (int)(subList.size()); ++functionNum)
 	{
-		bool callbackReturn = subList[functionNum].m_callbackFunction(args);
+		bool callbackReturn = subList[functionNum]->Execute(args);
 		if (callbackReturn)
 			return true;
 	}
@@ -90,10 +107,11 @@ bool EventSystem::FireEvent(std::string const& eventName, EventArgs& args)
 	return false;
 }
 
-bool EventSystem::FireEvent(std::string const& eventName)
+bool EventSystem::FireEvent(HashedCaseInsensitiveString const& eventName)
 {
-	std::string eventNameLowerCase = GetLowercase(eventName);
-	auto subscriptionListIter = m_subscriptionListByEventName.find(eventNameLowerCase);
+	std::scoped_lock<std::recursive_mutex> lock(m_eventSystemMutex);
+
+	auto subscriptionListIter = m_subscriptionListByEventName.find(eventName);
 	if (subscriptionListIter == m_subscriptionListByEventName.end())
 		return false;
 		
@@ -102,7 +120,7 @@ bool EventSystem::FireEvent(std::string const& eventName)
 	EventArgs args;
 	for (int functionNum = 0; functionNum < (int)(subList.size()); ++functionNum)
 	{
-		bool callbackReturn = subList[functionNum].m_callbackFunction(args);
+		bool callbackReturn = subList[functionNum]->Execute(args);
 		if (callbackReturn)
 			return true;
 	}
@@ -110,36 +128,34 @@ bool EventSystem::FireEvent(std::string const& eventName)
 	return false;
 }
 
-bool EventSystem::IsValidEvent(std::string eventInfo) const
+bool EventSystem::IsValidEvent(std::string const& eventInfo) const
 {
+	std::scoped_lock<std::recursive_mutex> lock(m_eventSystemMutex);
+
 	Strings eventInfoSplit = SplitStringOnDelimiter(eventInfo, ' ', false);
 	if (eventInfoSplit.size() <= 0)
 		return false;
 
-	std::string eventNameLowerCase = GetLowercase(eventInfoSplit[0]);
+	HashedCaseInsensitiveString hashedEventName(eventInfoSplit[0]);
 	
-	auto subscriptionListIter = m_subscriptionListByEventName.find(eventNameLowerCase);
+	auto subscriptionListIter = m_subscriptionListByEventName.find(hashedEventName);
 	return (subscriptionListIter != m_subscriptionListByEventName.end());
 }
 
-Strings EventSystem::GetAllRegisteredEventNames(bool getPresentationName) const
+HashedStrings EventSystem::GetAllRegisteredEventNames() const
 {
-	std::vector<std::string> eventNames;
+	std::scoped_lock<std::recursive_mutex> lock(m_eventSystemMutex);
+
+	HashedStrings eventNames;
 
 	for (const auto& [key, value] : m_subscriptionListByEventName)
 	{
 		auto found = m_eventNameInfoPair.find(key);
 		if (found != m_eventNameInfoPair.end())
 		{
-			if (getPresentationName)
-			{
-				eventNames.push_back(found->second.m_presentationName);
-			}
-
-			else
-			{
-				eventNames.push_back(found->second.m_name);
-			}
+			
+			eventNames.push_back(found->second.m_name);
+			
 			continue;
 		}
 
@@ -149,10 +165,31 @@ Strings EventSystem::GetAllRegisteredEventNames(bool getPresentationName) const
 	return eventNames;
 }
 
-bool EventSystem::GetArgumentFormatsForEventName(std::string const& eventName, Strings& out_strings) const
+std::vector<EventInfo> EventSystem::GetAllRegisteredEventInfos() const
 {
-	std::string eventNameLowerCase = GetLowercase(eventName);
-	auto found = m_eventNameInfoPair.find(eventNameLowerCase);
+	std::scoped_lock<std::recursive_mutex> lock(m_eventSystemMutex);
+
+	std::vector<EventInfo> eventInfos;
+	for (const auto& [key, value] : m_eventNameInfoPair)
+	{
+		auto found = m_eventNameInfoPair.find(key);
+		if (found != m_eventNameInfoPair.end())
+		{
+
+			eventInfos.push_back(found->second);
+
+			continue;
+		}
+	}
+
+	return eventInfos;
+}
+
+bool EventSystem::GetArgumentFormatsForEventName(HashedCaseInsensitiveString const& eventName, Strings& out_strings) const
+{
+	std::scoped_lock<std::recursive_mutex> lock(m_eventSystemMutex);
+
+	auto found = m_eventNameInfoPair.find(eventName);
 	if (found != m_eventNameInfoPair.end())
 	{
 		Strings argumentFormats = found->second.m_argumentFormats;
@@ -177,23 +214,23 @@ bool EventSystem::GetArgumentFormatsForEventName(std::string const& eventName, S
 
 //Standalone Functions
 //----------------------------------------------------------------------------------------------------------------
-void SubscribeEventCallbackFunction(std::string const& eventName, EventCallbackFunction* function)
+void SubscribeEventCallbackFunction(HashedCaseInsensitiveString const& eventName, EventCallbackFunction* function, bool visibleEvent)
 {
 	if (g_eventSystem != nullptr)
 	{
-		g_eventSystem->SubscribeEventCallbackFunction(eventName, function);
+		g_eventSystem->SubscribeEventCallbackFunction(eventName, function, visibleEvent);
 	}
 }
 
-void SubscribeEventCallbackFunction(std::string const& eventName, Strings const& argumentFormats, EventCallbackFunction* function)
+void SubscribeEventCallbackFunction(HashedCaseInsensitiveString const& eventName, Strings const& argumentFormats, EventCallbackFunction* function, bool visibleEvent)
 {
 	if (g_eventSystem != nullptr)
 	{
-		g_eventSystem->SubscribeEventCallbackFunction(eventName, argumentFormats, function);
+		g_eventSystem->SubscribeEventCallbackFunction(eventName, argumentFormats, function, visibleEvent);
 	}
 }
 
-void UnsubscribeEventCallbackFunction(std::string const& eventName, EventCallbackFunction* function)
+void UnsubscribeEventCallbackFunction(HashedCaseInsensitiveString const& eventName, EventCallbackFunction* function)
 {
 	if (g_eventSystem != nullptr)
 	{
@@ -201,7 +238,15 @@ void UnsubscribeEventCallbackFunction(std::string const& eventName, EventCallbac
 	}
 }
 
-bool FireEvent(std::string const& eventName, EventArgs& args)
+void UnsubscribeAllEventCallbacks(HashedCaseInsensitiveString const& eventName)
+{
+	if (g_eventSystem)
+	{
+		g_eventSystem->UnsubscribeAllEventCallbacks(eventName);
+	}
+}
+
+bool FireEvent(HashedCaseInsensitiveString const& eventName, EventArgs& args)
 {
 	if (g_eventSystem != nullptr)
 	{
@@ -211,7 +256,7 @@ bool FireEvent(std::string const& eventName, EventArgs& args)
 	return false;
 }
 
-bool FireEvent(std::string const& eventName)
+bool FireEvent(HashedCaseInsensitiveString const& eventName)
 {
 	if (g_eventSystem != nullptr)
 	{
@@ -219,4 +264,13 @@ bool FireEvent(std::string const& eventName)
 	}
 	
 	return false;
+}
+
+
+EventSubscriber::~EventSubscriber()
+{
+	if (g_eventSystem)
+	{
+		g_eventSystem->UnsubscribeAllEventCallbacksForObject(this);
+	}
 }

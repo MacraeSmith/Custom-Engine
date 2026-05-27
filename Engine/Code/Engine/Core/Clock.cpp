@@ -57,7 +57,11 @@ void Clock::StepSingleFrame()
 
 Clock::~Clock()
 {
-	m_parent->RemoveChild(this);
+	if (m_parent)
+	{
+		m_parent->RemoveChild(this);
+	}
+
 	for (int clockNum = 0; clockNum < (int)m_children.size(); ++clockNum)
 	{
 		m_children[clockNum]->m_parent = nullptr;
@@ -80,6 +84,11 @@ float Clock::GetTimeScale() const
 void Clock::SetMinDeltaSeconds(float deltaSeconds)
 {
 	m_minDeltaSeconds = (double)deltaSeconds;
+}
+
+void Clock::SetMaxFrameRate(float frameRate)
+{
+	m_minDeltaSeconds = (double)(1.f/frameRate);
 }
 
 float Clock::GetDeltaSeconds() const
@@ -161,6 +170,15 @@ void Clock::Advance(double deltaTimeSeconds)
 
 void Clock::AddChild(Clock* childClock)
 {
+	for (int i = 0; i < m_children.size(); ++i)
+	{
+		if (!m_children[i])
+		{
+			m_children[i] = childClock;
+			return;
+		}
+	}
+
 	m_children.push_back(childClock);
 }
 

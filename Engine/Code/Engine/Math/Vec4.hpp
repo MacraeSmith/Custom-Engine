@@ -1,4 +1,5 @@
 #pragma once
+#include <string>
 struct Rgba8;
 struct Vec4
 {
@@ -14,6 +15,8 @@ public:
 	Vec4(const Vec4& copyFrom);
 	explicit Vec4(float initialX, float initialY, float initialZ, float initialW);
 	explicit Vec4(Rgba8 const& color);
+
+	std::string GetAsText(int numDecimals = 2) const;
 
 	//Mutators
 	//-----------------------------------------------------------------------------------------------

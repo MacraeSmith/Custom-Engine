@@ -1,6 +1,7 @@
 #include "Engine/Core/NamedStrings.hpp"
 #include "Engine/Core/Rgba8.hpp"
 #include "Engine/Math/Vec2.hpp"
+#include "Engine/Math/Vec3.hpp"
 #include "Engine/Math/IntVec2.hpp"
 #include "Engine/Core/ErrorWarningAssert.hpp"
 #include "Engine/Math/EulerAngles.hpp"
@@ -14,6 +15,84 @@ void NamedStrings::PopulateFromXmlElementAttributes(XmlElement const& element)
 		SetValue(attribute->Name(), attribute->Value());
 		attribute = attribute->Next();
 	}
+}
+
+Strings NamedStrings::GetMapAsEventArgsStrings() const
+{
+	Strings eventArgs;
+	auto iter = m_keyValuePairs.begin();
+	if (iter != m_keyValuePairs.end())
+	{
+		eventArgs.push_back(Stringf("%s=%s", iter->first.c_str(), iter->second.c_str()));
+	}
+
+	else
+	{
+		return eventArgs;
+	}
+
+	for (int i = 1; i < (int)m_keyValuePairs.size(); ++i)
+	{
+		std::advance(iter, 1);
+		if (iter != m_keyValuePairs.end())
+		{
+			eventArgs.push_back(Stringf("%s=%s", iter->first.c_str(), iter->second.c_str()));
+		}
+
+	}
+	return eventArgs;
+}
+
+std::string NamedStrings::GetMapAsString() const
+{
+	std::string string;
+	auto iter = m_keyValuePairs.begin();
+	if (iter != m_keyValuePairs.end())
+	{
+		string.append(Stringf("%s %s", iter->first.c_str(), iter->second.c_str()));
+	}
+
+	else
+	{
+		return string;
+	}
+
+	for (int i = 1; i < (int)m_keyValuePairs.size(); ++i)
+	{
+		std::advance(iter, 1);
+		if (iter != m_keyValuePairs.end())
+		{
+			string.append(Stringf("%s %s", iter->first.c_str(), iter->second.c_str()));
+		}
+
+	}
+	return string;
+}
+
+std::string NamedStrings::ConcatenateKeysAsString(char concatenateChar)
+{
+	std::string string;
+	auto iter = m_keyValuePairs.begin();
+	if (iter != m_keyValuePairs.end())
+	{
+		string.append(Stringf("%s%c", iter->first.c_str(), concatenateChar));
+	}
+
+	else
+	{
+		return string;
+	}
+
+	for (int i = 1; i < (int)m_keyValuePairs.size(); ++i)
+	{
+		std::advance(iter, 1);
+		if (iter != m_keyValuePairs.end())
+		{
+			string.append(Stringf("%s%c", iter->first.c_str(), concatenateChar));
+		}
+
+	}
+	return string;
 }
 
 void NamedStrings::SetValue(std::string const& keyName, std::string const& newValue, bool defaultLowerCase)
@@ -170,6 +249,25 @@ Vec2 NamedStrings::GetValue(std::string const& keyName, Vec2 const& defaultValue
 	Vec2 newVec2;
 	newVec2.SetFromText(found->second.c_str());
 	return newVec2;
+}
+
+Vec3 NamedStrings::GetValue(std::string const& keyName, Vec3 const& defaultValue, bool defaultLowerCase) const
+{
+	std::string keyNameAdjusted = keyName;
+	if (defaultLowerCase)
+	{
+		keyNameAdjusted = GetLowercase(keyName);
+	}
+	auto found = m_keyValuePairs.find(keyNameAdjusted);
+	if (found == m_keyValuePairs.end())
+	{
+		DebuggerPrintf("WARNING: keyName \"%s\" was not found)\n", keyNameAdjusted.c_str());
+		return defaultValue;
+	}
+
+	Vec3 newVec3;
+	newVec3.SetFromText(found->second.c_str());
+	return newVec3;
 }
 
 IntVec2 NamedStrings::GetValue(std::string const& keyName, IntVec2 const& defaultValue, bool defaultLowerCase) const

@@ -10,19 +10,14 @@ public:
 	RootSignatureDX12(RendererDX12 const* renderer, D3D12_ROOT_SIGNATURE_DESC1 const& rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION rootSignatureVersion, std::string const& name = "RootSignatureDX12");
 	~RootSignatureDX12();
 
-
-	void Destroy();
+	void				Destroy();
+	void				SetRootSignatureDesc(const D3D12_ROOT_SIGNATURE_DESC1& rootSignatureDesc,D3D_ROOT_SIGNATURE_VERSION rootSignatureVersion);
 
 	ID3D12RootSignature* GetRootSignature() const{return m_rootSignature;}
-
-	void SetRootSignatureDesc(const D3D12_ROOT_SIGNATURE_DESC1& rootSignatureDesc,D3D_ROOT_SIGNATURE_VERSION rootSignatureVersion);
-
 	const D3D12_ROOT_SIGNATURE_DESC1& GetRootSignatureDesc() const{return m_rootSignatureDesc;}
-
-	uint32_t GetDescriptorTableBitMask(D3D12_DESCRIPTOR_HEAP_TYPE descriptorHeapType) const;
-	uint32_t GetNumDescriptors(uint32_t rootIndex) const;
-
-	std::string GetName() const {return m_name;}
+	uint32_t		GetDescriptorTableBitMask(D3D12_DESCRIPTOR_HEAP_TYPE descriptorHeapType) const;
+	uint32_t		GetNumDescriptors(uint32_t rootIndex) const;
+	std::string		GetName() const {return m_name;}
 
 protected:
 
@@ -43,5 +38,6 @@ private:
 	// A bit mask that represents the root parameter indices that are 
 	// CBV, UAV, and SRV descriptor tables.
 	uint32_t m_descriptorTableBitMask;
+
 };
 

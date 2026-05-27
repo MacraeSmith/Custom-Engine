@@ -72,6 +72,9 @@ public:
 	bool WasKeyJustReleased(unsigned char keyCode);
 	bool IsKeyDown(unsigned char keyCode);
 	void HandleKeyPressed(unsigned char keyCode);
+	bool Event_KeyPressed(EventArgs& args);
+	bool Event_KeyReleased(EventArgs& args);
+	bool Event_MouseWheelTurned(EventArgs& args);
 	void HandleKeyReleased(unsigned char keyCode);
 	XboxController const& GetController(int controllerID);
 
@@ -83,9 +86,10 @@ public:
 	Vec2 GetCursorNormalizedPosition() const;
 	float GetWheelDelta() const;
 
-	static bool Event_KeyPressed(EventArgs& args);
-	static bool Event_KeyReleased(EventArgs& args);
-	static bool Event_MouseWheelTurned(EventArgs& args);
+
+	//static bool Event_KeyPressed(EventArgs& args);
+	//static bool Event_KeyReleased(EventArgs& args);
+	//static bool Event_MouseWheelTurned(EventArgs& args);
 
 public:
 	CursorState m_cursorState;

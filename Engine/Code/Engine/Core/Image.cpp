@@ -15,7 +15,7 @@ Image::Image(char const* imageFilePath)
 	unsigned char* texelData = stbi_load(imageFilePath, &m_dimensions.x, &m_dimensions.y, &bytesPerTexel, 0);
 
 	GUARANTEE_OR_DIE(texelData, Stringf("Failed to load image \"%s\"", imageFilePath));
-	GUARANTEE_OR_DIE(texelData, Stringf("CreateTextureFromData failed for \"%s\" - texelData was null!", imageFilePath));
+	//GUARANTEE_OR_DIE(texelData, Stringf("CreateTextureFromData failed for \"%s\" - texelData was null!", imageFilePath));
 	GUARANTEE_OR_DIE(m_dimensions.x > 0 && m_dimensions.y > 0, Stringf("CreateTextureFromData failed for \"%s\" - illegal texture dimensions (%i x %i)", imageFilePath, m_dimensions.x, m_dimensions.y));
 	GUARANTEE_OR_DIE(bytesPerTexel <= 4, Stringf("Image: \"%s\" had \"%i\" bytes per texel", imageFilePath, bytesPerTexel));
 
@@ -25,21 +25,32 @@ Image::Image(char const* imageFilePath)
 	int byteIndex = 0;
 	for (int texelNum = 0; texelNum < numTexels; ++texelNum)
 	{
-		m_rgbaTexels[texelNum].r = texelData[byteIndex];
-		byteIndex++;
-		m_rgbaTexels[texelNum].g = texelData[byteIndex];
-		byteIndex++;
-		m_rgbaTexels[texelNum].b = texelData[byteIndex];
-		byteIndex++;
-		if (bytesPerTexel == 4)
-		{
-			m_rgbaTexels[texelNum].a = texelData[byteIndex];
-			byteIndex++;
-		}
 
+		if (bytesPerTexel == 1) // grayscale
+		{
+			unsigned char gray = texelData[byteIndex++];
+			m_rgbaTexels[texelNum].r = gray;
+			m_rgbaTexels[texelNum].g = gray;
+			m_rgbaTexels[texelNum].b = gray;
+			m_rgbaTexels[texelNum].a = 255;
+		}
+		else if (bytesPerTexel == 3) // RGB
+		{
+			m_rgbaTexels[texelNum].r = texelData[byteIndex++];
+			m_rgbaTexels[texelNum].g = texelData[byteIndex++];
+			m_rgbaTexels[texelNum].b = texelData[byteIndex++];
+			m_rgbaTexels[texelNum].a = 255; // opaque
+		}
+		else if (bytesPerTexel == 4) // RGBA
+		{
+			m_rgbaTexels[texelNum].r = texelData[byteIndex++];
+			m_rgbaTexels[texelNum].g = texelData[byteIndex++];
+			m_rgbaTexels[texelNum].b = texelData[byteIndex++];
+			m_rgbaTexels[texelNum].a = texelData[byteIndex++];
+		}
 		else
 		{
-			m_rgbaTexels[texelNum].a = 255;
+			GUARANTEE_OR_DIE(false, Stringf("Unsupported channel count %i in image \"%s\"", bytesPerTexel, imageFilePath));
 		}
 
 	}
@@ -47,8 +58,9 @@ Image::Image(char const* imageFilePath)
 	stbi_image_free(texelData);
 }
 
-Image::Image(IntVec2 size, Rgba8 color)
+Image::Image(IntVec2 size, Rgba8 color, char const* name)
 	:m_dimensions(size)
+	,m_imageFilePath(name)
 {
 	int numTexels = m_dimensions.x * m_dimensions.y;
 	m_rgbaTexels.resize(numTexels);

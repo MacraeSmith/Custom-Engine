@@ -35,22 +35,40 @@
     <Filter Include="Renderer\DX11">
       <UniqueIdentifier>{75683ff8-8ff9-4e11-9602-12d809629150}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Network">
+      <UniqueIdentifier>{61f70e8e-d9b3-4b23-bd8e-27556de16eab}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="ImGui">
+      <UniqueIdentifier>{fc8d21c1-bad5-4fb1-8913-2d384777b3b2}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="ImGui\Backends">
+      <UniqueIdentifier>{434ad018-14d9-4e6a-a1f4-0ee08c4de54c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Math\Noise">
+      <UniqueIdentifier>{6099eaa2-15bf-4a09-bbcd-f798b1f10bf2}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Core\Verts">
+      <UniqueIdentifier>{6f13f52e-e685-45e2-bcd3-15343e598dd0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Core\Time">
+      <UniqueIdentifier>{eae92fce-5e2b-443c-ac69-a6db68245a59}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Math\Splines and Curves">
+      <UniqueIdentifier>{9edffbc3-9853-4843-8c7c-fc10276f4e25}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Math\Vectors">
+      <UniqueIdentifier>{ee4bac7f-c07c-4b45-a7d1-b73a7e1b8b92}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Core\Strings">
+      <UniqueIdentifier>{dfa10759-69c6-4b26-943a-d0412ef446bb}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="Math\Vec2.cpp">
-      <Filter>Math</Filter>
-    </ClCompile>
     <ClCompile Include="Renderer\Renderer.cpp">
       <Filter>Renderer</Filter>
     </ClCompile>
     <ClCompile Include="Core\Rgba8.cpp">
       <Filter>Core</Filter>
-    </ClCompile>
-    <ClCompile Include="Core\Vertex_PCU.cpp">
-      <Filter>Core</Filter>
-    </ClCompile>
-    <ClCompile Include="Math\Vec3.cpp">
-      <Filter>Math</Filter>
     </ClCompile>
     <ClCompile Include="Renderer\Camera.cpp">
       <Filter>Renderer</Filter>
@@ -62,18 +80,6 @@
       <Filter>Math</Filter>
     </ClCompile>
     <ClCompile Include="Core\ErrorWarningAssert.cpp">
-      <Filter>Core</Filter>
-    </ClCompile>
-    <ClCompile Include="Core\StringUtils.cpp">
-      <Filter>Core</Filter>
-    </ClCompile>
-    <ClCompile Include="Core\VertexUtils.cpp">
-      <Filter>Core</Filter>
-    </ClCompile>
-    <ClCompile Include="Math\IntVec2.cpp">
-      <Filter>Math</Filter>
-    </ClCompile>
-    <ClCompile Include="Core\Time.cpp">
       <Filter>Core</Filter>
     </ClCompile>
     <ClCompile Include="Input\AnalogJoystick.cpp">
@@ -121,9 +127,6 @@
     <ClCompile Include="Math\Disc2.cpp">
       <Filter>Math\2D Shapes</Filter>
     </ClCompile>
-    <ClCompile Include="Renderer\Texture.cpp">
-      <Filter>Renderer</Filter>
-    </ClCompile>
     <ClCompile Include="Core\Image.cpp">
       <Filter>Core</Filter>
     </ClCompile>
@@ -136,17 +139,11 @@
     <ClCompile Include="Math\Mat44.cpp">
       <Filter>Math</Filter>
     </ClCompile>
-    <ClCompile Include="Math\Vec4.cpp">
-      <Filter>Math</Filter>
-    </ClCompile>
     <ClCompile Include="..\ThirdParty\TinyXML2\tinyxml2.cpp">
       <Filter>XML</Filter>
     </ClCompile>
     <ClCompile Include="Core\XmlUtils.cpp">
       <Filter>XML</Filter>
-    </ClCompile>
-    <ClCompile Include="Core\NamedStrings.cpp">
-      <Filter>Core</Filter>
     </ClCompile>
     <ClCompile Include="Core\EngineCommon.cpp">
       <Filter>Core</Filter>
@@ -178,26 +175,14 @@
     <ClCompile Include="Math\AABB3.cpp">
       <Filter>Math\3D Shapes</Filter>
     </ClCompile>
-    <ClCompile Include="Core\Clock.cpp">
-      <Filter>Core</Filter>
-    </ClCompile>
-    <ClCompile Include="Core\Timer.cpp">
-      <Filter>Core</Filter>
-    </ClCompile>
     <ClCompile Include="Renderer\DebugRender.cpp">
       <Filter>Renderer</Filter>
     </ClCompile>
     <ClCompile Include="Math\ZSphere3D.cpp">
       <Filter>Math\3D Shapes</Filter>
     </ClCompile>
-    <ClCompile Include="Core\Vertex_PCUTBN.cpp">
-      <Filter>Core</Filter>
-    </ClCompile>
     <ClCompile Include="Math\ZCylinder3D.cpp">
       <Filter>Math\3D Shapes</Filter>
-    </ClCompile>
-    <ClCompile Include="Math\Splines.cpp">
-      <Filter>Math</Filter>
     </ClCompile>
     <ClCompile Include="Math\OBB3.cpp">
       <Filter>Math\3D Shapes</Filter>
@@ -230,9 +215,6 @@
       <Filter>Renderer\DX12</Filter>
     </ClCompile>
     <ClCompile Include="Renderer\RootSignatureDX12.cpp">
-      <Filter>Renderer\DX12</Filter>
-    </ClCompile>
-    <ClCompile Include="Renderer\ConstantBufferDX12.cpp">
       <Filter>Renderer\DX12</Filter>
     </ClCompile>
     <ClCompile Include="Renderer\UploadBufferDX12.cpp">
@@ -271,22 +253,145 @@
     <ClCompile Include="Renderer\BufferDX12.cpp">
       <Filter>Renderer\DX12</Filter>
     </ClCompile>
+    <ClCompile Include="Core\StaticMesh.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
+    <ClCompile Include="Renderer\Texture.cpp">
+      <Filter>Renderer\DX11</Filter>
+    </ClCompile>
+    <ClCompile Include="Renderer\TextureDX12.cpp">
+      <Filter>Renderer\DX12</Filter>
+    </ClCompile>
+    <ClCompile Include="Network\NetworkSystem.cpp">
+      <Filter>Network</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\Material.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
+    <ClCompile Include="Network\ChatSystem.cpp">
+      <Filter>Network</Filter>
+    </ClCompile>
+    <ClCompile Include="..\ThirdParty\imgui\imgui.cpp">
+      <Filter>ImGui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\ThirdParty\imgui\imgui_demo.cpp">
+      <Filter>ImGui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\ThirdParty\imgui\imgui_draw.cpp">
+      <Filter>ImGui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\ThirdParty\imgui\imgui_tables.cpp">
+      <Filter>ImGui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\ThirdParty\imgui\imgui_widgets.cpp">
+      <Filter>ImGui</Filter>
+    </ClCompile>
+    <ClCompile Include="ImGui\ImGuiSystem.cpp">
+      <Filter>ImGui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\ThirdParty\imgui\backends\imgui_impl_dx11.cpp">
+      <Filter>ImGui\Backends</Filter>
+    </ClCompile>
+    <ClCompile Include="..\ThirdParty\imgui\backends\imgui_impl_dx12.cpp">
+      <Filter>ImGui\Backends</Filter>
+    </ClCompile>
+    <ClCompile Include="..\ThirdParty\imgui\backends\imgui_impl_win32.cpp">
+      <Filter>ImGui\Backends</Filter>
+    </ClCompile>
+    <ClCompile Include="Math\RawNoise.cpp">
+      <Filter>Math\Noise</Filter>
+    </ClCompile>
+    <ClCompile Include="Math\SmoothNoise.cpp">
+      <Filter>Math\Noise</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\Vertex_PCU.cpp">
+      <Filter>Core\Verts</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\Vertex_PCUTBN.cpp">
+      <Filter>Core\Verts</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\VertexUtils.cpp">
+      <Filter>Core\Verts</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\Time.cpp">
+      <Filter>Core\Time</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\Timer.cpp">
+      <Filter>Core\Time</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\Clock.cpp">
+      <Filter>Core\Time</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\Vertex_Terrain.cpp">
+      <Filter>Core\Verts</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\JobSystem.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
+    <ClCompile Include="Math\Curves.cpp">
+      <Filter>Math\Splines and Curves</Filter>
+    </ClCompile>
+    <ClCompile Include="Math\Splines.cpp">
+      <Filter>Math\Splines and Curves</Filter>
+    </ClCompile>
+    <ClCompile Include="Math\IntVec2.cpp">
+      <Filter>Math\Vectors</Filter>
+    </ClCompile>
+    <ClCompile Include="Math\IntVec3.cpp">
+      <Filter>Math\Vectors</Filter>
+    </ClCompile>
+    <ClCompile Include="Math\Vec2.cpp">
+      <Filter>Math\Vectors</Filter>
+    </ClCompile>
+    <ClCompile Include="Math\Vec3.cpp">
+      <Filter>Math\Vectors</Filter>
+    </ClCompile>
+    <ClCompile Include="Math\Vec4.cpp">
+      <Filter>Math\Vectors</Filter>
+    </ClCompile>
+    <ClCompile Include="Renderer\Skybox.cpp">
+      <Filter>Renderer</Filter>
+    </ClCompile>
+    <ClCompile Include="Renderer\StructuredBufferDX12.cpp">
+      <Filter>Renderer\DX12</Filter>
+    </ClCompile>
+    <ClCompile Include="Math\ConvexPoly2.cpp">
+      <Filter>Math\2D Shapes</Filter>
+    </ClCompile>
+    <ClCompile Include="Math\Plane2D.cpp">
+      <Filter>Math\2D Shapes</Filter>
+    </ClCompile>
+    <ClCompile Include="Math\ConvexHull2.cpp">
+      <Filter>Math\2D Shapes</Filter>
+    </ClCompile>
+    <ClCompile Include="Math\Quaternion.cpp">
+      <Filter>Math</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\BufferUtilities.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
+    <ClCompile Include="Math\HashUtils.cpp">
+      <Filter>Math</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\StringUtils.cpp">
+      <Filter>Core\Strings</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\NamedStrings.cpp">
+      <Filter>Core\Strings</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\HashedCaseInsensitiveString.cpp">
+      <Filter>Core\Strings</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\NamedProperties.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Math\Vec2.hpp">
-      <Filter>Math</Filter>
-    </ClInclude>
     <ClInclude Include="Renderer\Renderer.hpp">
       <Filter>Renderer</Filter>
     </ClInclude>
     <ClInclude Include="Core\Rgba8.hpp">
       <Filter>Core</Filter>
-    </ClInclude>
-    <ClInclude Include="Core\Vertex_PCU.hpp">
-      <Filter>Core</Filter>
-    </ClInclude>
-    <ClInclude Include="Math\Vec3.hpp">
-      <Filter>Math</Filter>
     </ClInclude>
     <ClInclude Include="Renderer\Camera.hpp">
       <Filter>Renderer</Filter>
@@ -298,18 +403,6 @@
       <Filter>Math</Filter>
     </ClInclude>
     <ClInclude Include="Core\ErrorWarningAssert.hpp">
-      <Filter>Core</Filter>
-    </ClInclude>
-    <ClInclude Include="Core\StringUtils.hpp">
-      <Filter>Core</Filter>
-    </ClInclude>
-    <ClInclude Include="Core\VertexUtils.hpp">
-      <Filter>Core</Filter>
-    </ClInclude>
-    <ClInclude Include="Math\IntVec2.hpp">
-      <Filter>Math</Filter>
-    </ClInclude>
-    <ClInclude Include="Core\Time.hpp">
       <Filter>Core</Filter>
     </ClInclude>
     <ClInclude Include="Input\AnalogJoystick.hpp">
@@ -384,9 +477,6 @@
     <ClInclude Include="Math\Disc2.hpp">
       <Filter>Math\2D Shapes</Filter>
     </ClInclude>
-    <ClInclude Include="Renderer\Texture.hpp">
-      <Filter>Renderer</Filter>
-    </ClInclude>
     <ClInclude Include="Core\Image.hpp">
       <Filter>Core</Filter>
     </ClInclude>
@@ -399,17 +489,11 @@
     <ClInclude Include="Math\Mat44.hpp">
       <Filter>Math</Filter>
     </ClInclude>
-    <ClInclude Include="Math\Vec4.hpp">
-      <Filter>Math</Filter>
-    </ClInclude>
     <ClInclude Include="..\ThirdParty\TinyXML2\tinyxml2.h">
       <Filter>XML</Filter>
     </ClInclude>
     <ClInclude Include="Core\XmlUtils.hpp">
       <Filter>XML</Filter>
-    </ClInclude>
-    <ClInclude Include="Core\NamedStrings.hpp">
-      <Filter>Core</Filter>
     </ClInclude>
     <ClInclude Include="Renderer\BitmapFont.hpp">
       <Filter>Renderer</Filter>
@@ -438,26 +522,14 @@
     <ClInclude Include="Math\AABB3.hpp">
       <Filter>Math\3D Shapes</Filter>
     </ClInclude>
-    <ClInclude Include="Core\Clock.hpp">
-      <Filter>Core</Filter>
-    </ClInclude>
-    <ClInclude Include="Core\Timer.hpp">
-      <Filter>Core</Filter>
-    </ClInclude>
     <ClInclude Include="Renderer\DebugRender.hpp">
       <Filter>Renderer</Filter>
     </ClInclude>
     <ClInclude Include="Math\ZSphere3D.hpp">
       <Filter>Math\3D Shapes</Filter>
     </ClInclude>
-    <ClInclude Include="Core\Vertex_PCUTBN.hpp">
-      <Filter>Core</Filter>
-    </ClInclude>
     <ClInclude Include="Math\ZCylinder3D.hpp">
       <Filter>Math\3D Shapes</Filter>
-    </ClInclude>
-    <ClInclude Include="Math\Splines.hpp">
-      <Filter>Math</Filter>
     </ClInclude>
     <ClInclude Include="Math\OBB3.hpp">
       <Filter>Math\3D Shapes</Filter>
@@ -490,9 +562,6 @@
       <Filter>Renderer\DX12</Filter>
     </ClInclude>
     <ClInclude Include="Renderer\RootSignatureDX12.hpp">
-      <Filter>Renderer\DX12</Filter>
-    </ClInclude>
-    <ClInclude Include="Renderer\ConstantBufferDX12.hpp">
       <Filter>Renderer\DX12</Filter>
     </ClInclude>
     <ClInclude Include="Renderer\UploadBufferDX12.hpp">
@@ -533,6 +602,141 @@
     </ClInclude>
     <ClInclude Include="Renderer\ThreadSafeQueue.hpp">
       <Filter>Renderer\DX12</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\StaticMesh.hpp">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Renderer\Texture.hpp">
+      <Filter>Renderer\DX11</Filter>
+    </ClInclude>
+    <ClInclude Include="Renderer\TextureDX12.hpp">
+      <Filter>Renderer\DX12</Filter>
+    </ClInclude>
+    <ClInclude Include="Network\NetworkSystem.hpp">
+      <Filter>Network</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Material.hpp">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Network\ChatSystem.hpp">
+      <Filter>Network</Filter>
+    </ClInclude>
+    <ClInclude Include="..\ThirdParty\imgui\imconfig.h">
+      <Filter>ImGui</Filter>
+    </ClInclude>
+    <ClInclude Include="..\ThirdParty\imgui\imgui.h">
+      <Filter>ImGui</Filter>
+    </ClInclude>
+    <ClInclude Include="..\ThirdParty\imgui\imgui_internal.h">
+      <Filter>ImGui</Filter>
+    </ClInclude>
+    <ClInclude Include="..\ThirdParty\imgui\imstb_rectpack.h">
+      <Filter>ImGui</Filter>
+    </ClInclude>
+    <ClInclude Include="..\ThirdParty\imgui\imstb_textedit.h">
+      <Filter>ImGui</Filter>
+    </ClInclude>
+    <ClInclude Include="..\ThirdParty\imgui\imstb_truetype.h">
+      <Filter>ImGui</Filter>
+    </ClInclude>
+    <ClInclude Include="ImGui\ImGuiSystem.hpp">
+      <Filter>ImGui</Filter>
+    </ClInclude>
+    <ClInclude Include="..\ThirdParty\imgui\backends\imgui_impl_dx11.h">
+      <Filter>ImGui\Backends</Filter>
+    </ClInclude>
+    <ClInclude Include="..\ThirdParty\imgui\backends\imgui_impl_dx12.h">
+      <Filter>ImGui\Backends</Filter>
+    </ClInclude>
+    <ClInclude Include="..\ThirdParty\imgui\backends\imgui_impl_win32.h">
+      <Filter>ImGui\Backends</Filter>
+    </ClInclude>
+    <ClInclude Include="Math\RawNoise.hpp">
+      <Filter>Math\Noise</Filter>
+    </ClInclude>
+    <ClInclude Include="Math\SmoothNoise.hpp">
+      <Filter>Math\Noise</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\VertexUtils.hpp">
+      <Filter>Core\Verts</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Vertex_PCU.hpp">
+      <Filter>Core\Verts</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Vertex_PCUTBN.hpp">
+      <Filter>Core\Verts</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Time.hpp">
+      <Filter>Core\Time</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Timer.hpp">
+      <Filter>Core\Time</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Clock.hpp">
+      <Filter>Core\Time</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Vertex_Terrain.hpp">
+      <Filter>Core\Verts</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\JobSystem.hpp">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Math\Curves.hpp">
+      <Filter>Math\Splines and Curves</Filter>
+    </ClInclude>
+    <ClInclude Include="Math\Splines.hpp">
+      <Filter>Math\Splines and Curves</Filter>
+    </ClInclude>
+    <ClInclude Include="Math\IntVec2.hpp">
+      <Filter>Math\Vectors</Filter>
+    </ClInclude>
+    <ClInclude Include="Math\IntVec3.hpp">
+      <Filter>Math\Vectors</Filter>
+    </ClInclude>
+    <ClInclude Include="Math\Vec2.hpp">
+      <Filter>Math\Vectors</Filter>
+    </ClInclude>
+    <ClInclude Include="Math\Vec3.hpp">
+      <Filter>Math\Vectors</Filter>
+    </ClInclude>
+    <ClInclude Include="Math\Vec4.hpp">
+      <Filter>Math\Vectors</Filter>
+    </ClInclude>
+    <ClInclude Include="Renderer\Skybox.hpp">
+      <Filter>Renderer</Filter>
+    </ClInclude>
+    <ClInclude Include="Renderer\StructuredBufferDX12.hpp">
+      <Filter>Renderer\DX12</Filter>
+    </ClInclude>
+    <ClInclude Include="Math\ConvexPoly2.hpp">
+      <Filter>Math\2D Shapes</Filter>
+    </ClInclude>
+    <ClInclude Include="Math\Plane2D.hpp">
+      <Filter>Math\2D Shapes</Filter>
+    </ClInclude>
+    <ClInclude Include="Math\ConvexHull2.hpp">
+      <Filter>Math\2D Shapes</Filter>
+    </ClInclude>
+    <ClInclude Include="Math\Quaternion.hpp">
+      <Filter>Math</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\BufferUtilities.hpp">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Math\HashUtils.hpp">
+      <Filter>Math</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\StringUtils.hpp">
+      <Filter>Core\Strings</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\NamedStrings.hpp">
+      <Filter>Core\Strings</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\HashedCaseInsensitiveString.hpp">
+      <Filter>Core\Strings</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\NamedProperties.hpp">
+      <Filter>Core</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

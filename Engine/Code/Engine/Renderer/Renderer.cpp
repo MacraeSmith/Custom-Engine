@@ -3,18 +3,14 @@
 #include "Engine/Core/EngineCommon.hpp"
 #include "Engine/Core/Vertex_PCU.hpp"
 #include "Engine/Math/IntVec2.hpp"
-#include "Engine/Renderer/Texture.hpp"
 #include "Engine/Core/ErrorWarningAssert.hpp"
 #include "Engine/Core/StringUtils.hpp"
 #include "Engine/Renderer/BitmapFont.hpp"
-#include "Engine/Renderer/Shader.hpp"
-#include "Engine/Renderer/VertexBuffer.hpp"
-#include "Engine/Renderer/ConstantBuffer.hpp"
-#include "Engine/Renderer/IndexBuffer.hpp"
 #include "Engine/Core/FileUtils.hpp"
 #include "Engine/Renderer/DefaultShader.hpp"
 #include "Engine/Core/Image.hpp"
 #include "Engine/Math/MathUtils.hpp"
+#include "Engine/Core/StaticMesh.hpp"
 
 #include<vector>
 #include "ThirdParty/stb/stb_image.h"
@@ -26,6 +22,7 @@
 #include <dxgidebug.h>
 #pragma comment(lib, "dxguid.lib")
 #endif
+
 
 #if defined(OPAQUE)
 #undef OPAQUE
@@ -90,7 +87,7 @@ LightConstants::LightConstants(Vec3 const& sunDirection, float sunIntensity, flo
 	}
 }
 
-std::string Renderer::GetNameForBlendMode(BlendMode const& blendMode) const
+std::string Renderer::GetNameForBlendMode(BlendMode const& blendMode)
 {
 	switch (blendMode)
 	{
@@ -102,7 +99,7 @@ std::string Renderer::GetNameForBlendMode(BlendMode const& blendMode) const
 	}
 }
 
-std::string Renderer::GetNameForDepthMode(DepthMode const& depthMode) const
+std::string Renderer::GetNameForDepthMode(DepthMode const& depthMode)
 {
 	switch (depthMode)
 	{
@@ -114,15 +111,114 @@ std::string Renderer::GetNameForDepthMode(DepthMode const& depthMode) const
 	}
 }
 
-std::string Renderer::GetNameForRasterizerMode(RasterizerMode const& rasterizerMode) const
+std::string Renderer::GetNameForRasterizerMode(RasterizerMode const& rasterizerMode)
 {
 	switch (rasterizerMode)
 	{
 	case RasterizerMode::SOLID_CULL_NONE: return "SOLID_CULL_NONE";
 	case RasterizerMode::SOLID_CULL_BACK: return "SOLID_CULL_BACK";
+	case RasterizerMode::SOLID_CULL_FRONT : return "SOLID_CULL_FRONT";
 	case RasterizerMode::WIREFRAME_CULL_NONE: return "WIREFRAME_CULL_NONE";
 	case RasterizerMode::WIREFRAME_CULL_BACK: return "WIREFRAME_CULL_BACK";
 	case RasterizerMode::WIREFRAME_CULL_FRONT: return "WIREFRAME_CULL_FRONT";
 	default: return "UNAMED_RASTERIZER_MODE";
 	}
+}
+
+BlendMode Renderer::GetBlendModeFromName(std::string const& name)
+{
+	std::string nameLowerCase = GetLowercase(name);
+	if(name == "opaque")
+		return BlendMode::OPAQUE;
+
+	else if (name == "alpha")
+		return BlendMode::ALPHA;
+
+	else if (name == "additive")
+		return BlendMode::ADDITIVE;
+
+	else if (name == "lighten")
+		return BlendMode::LIGHTEN;
+
+	return BlendMode::OPAQUE;
+}
+
+StaticMesh* Renderer::CreateOrGetStaticMeshFromFile(std::string const& filePath)
+{
+	for (int i = 0; i < (int)m_loadedStaticMeshes.size(); ++i)
+	{
+		if (m_loadedStaticMeshes[i] && m_loadedStaticMeshes[i]->m_staticMeshFilePath == filePath)
+		{
+			return m_loadedStaticMeshes[i];
+		}
+	}
+
+	StaticMesh* staticMesh = new StaticMesh(this, filePath);
+	m_loadedStaticMeshes.push_back(staticMesh);
+	return staticMesh;
+}
+
+StaticMesh* Renderer::CreateOrGetStaticMeshFromVerts(Verts const& verts, StaticMeshConfig const& config)
+{
+	for (int i = 0; i < (int)m_loadedStaticMeshes.size(); ++i)
+	{
+		if (m_loadedStaticMeshes[i] && m_loadedStaticMeshes[i]->m_staticMeshName == config.m_name)
+		{
+			return m_loadedStaticMeshes[i];
+		}
+	}
+
+	StaticMesh* newMesh = new StaticMesh(this, verts, config);
+	m_loadedStaticMeshes.push_back(newMesh);
+	return newMesh;
+}
+
+StaticMesh* Renderer::CreateOrGetStaticMeshFromVertTBNs(VertTBNs const& verts, IndexList const& indexes, StaticMeshConfig const& config)
+{
+	for (int i = 0; i < (int)m_loadedStaticMeshes.size(); ++i)
+	{
+		if (m_loadedStaticMeshes[i] && m_loadedStaticMeshes[i]->m_staticMeshName == config.m_name)
+		{
+			return m_loadedStaticMeshes[i];
+		}
+	}
+
+	StaticMesh* newMesh = new StaticMesh(this, verts, indexes, config);
+	m_loadedStaticMeshes.push_back(newMesh);
+	return newMesh;
+}
+
+
+BitmapFont* Renderer::GetBitMapFontForFileName(char const* bitmapFontFilePathWithNoExtension) const
+{
+	for (int fontIndex = 0; fontIndex < (int)(m_loadedFonts.size()); ++fontIndex)
+	{
+		if (m_loadedFonts[fontIndex]->m_fontFilePathNameWithNoExtension == static_cast<std::string>(bitmapFontFilePathWithNoExtension))
+		{
+			return m_loadedFonts[fontIndex];
+		}
+	}
+
+	return nullptr;
+}
+
+
+void Renderer::SetBlendMode(BlendMode blendMode)
+{
+	m_desiredBlendMode = blendMode;
+}
+
+void Renderer::SetSamplerMode(SamplerMode samplerMode, int slot)
+{
+	m_desiredSamplerModeBySlot[slot] = samplerMode;
+}
+
+void Renderer::SetRasterizerMode(RasterizerMode rasterizerMode)
+{
+	m_desiredRasterizerMode = rasterizerMode;
+}
+
+void Renderer::SetDepthMode(DepthMode depthMode)
+{
+	m_desiredDepthMode = depthMode;
 }

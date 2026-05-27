@@ -5,6 +5,7 @@
 #include "Engine/Math/Mat44.hpp"
 #include "Engine/Math/MathUtils.hpp"
 #include "Engine/Core/StringUtils.hpp"
+#include "Engine/Math/RandomNumberGenerator.hpp"
 
 EulerAngles const EulerAngles::ZERO = EulerAngles(0.f, 0.f, 0.f);
 
@@ -90,12 +91,28 @@ Vec3 EulerAngles::Get_KUp() const
 	return Vec3((-sY * -sR) + (cY * sP * cR), (cY * -sR) + (sY * sP * cR), cP * cR);
 }
 
+std::string EulerAngles::GetAsText(int numDecimals) const
+{
+	numDecimals = GetClampedInt(numDecimals, 0, 10);
+	char format[64];
+	std::snprintf(format, sizeof(format), "%%.%df, %%.%df, %%.%df", numDecimals, numDecimals, numDecimals);
+	return Stringf(format, m_yawDegrees, m_pitchDegrees, m_rollDegrees);
+}
+
 void EulerAngles::SetFromText(char const* text)
 {
 	Strings numsFromText = SplitStringOnDelimiter(text, ',');
 	m_yawDegrees = (float)(atof(numsFromText[0].c_str()));
 	m_pitchDegrees = (float)(atof(numsFromText[1].c_str()));
 	m_rollDegrees = (float)(atof(numsFromText[2].c_str()));
+}
+
+EulerAngles EulerAngles::GetRandomOrientation(RandomNumberGenerator* rng, bool ignoreRoll)
+{
+	float yaw = rng->RollRandomFloatInRange(0.f, 360.f);
+	float pitch = rng->RollRandomFloatInRange(0.f, 360.f);
+	float roll = ignoreRoll ? 0.f : rng->RollRandomFloatInRange(0.f, 360.f);
+	return EulerAngles(yaw, pitch, roll);
 }
 
 const EulerAngles EulerAngles::operator*(float uniformScale) const

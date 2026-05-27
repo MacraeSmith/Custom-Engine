@@ -4,7 +4,14 @@
 #include <vector>
 #include <string>
 
+#include "Game/EngineBuildPreferences.hpp"
+
+#ifdef RENDERER_DX12
+class TextureDX12;
+#else
 class Texture;
+#endif
+
 struct Vertex_PCU;
 struct Vec2;
 struct IntVec2;
@@ -23,10 +30,13 @@ class BitmapFont
 	friend class RendererDX12;
 
 private:
+#ifdef RENDERER_DX12
+	BitmapFont(char const* fontFilePathNameWithNoExtension, TextureDX12& fontTexture, IntVec2 const& layout);
+#else
 	BitmapFont(char const* fontFilePathNameWithNoExtension, Texture& fontTexture, IntVec2 const& layout);
+#endif
 
 public:
-	Texture& GetTexture() const;
 
 	void AddVertsForText2D(std::vector<Vertex_PCU>& vertexArray, Vec2 const& textMins, float cellHeight, std::string const& text, Rgba8 const& tint = Rgba8::WHITE, float cellAspectScale = 1.f);
 	void AddVertsForCenteredText2D(std::vector<Vertex_PCU>& vertexArray, Vec2 const& textCenter, float cellHeight, std::string const& text, Rgba8 const& tint = Rgba8::WHITE, float cellAspectScale = 1.f);
@@ -35,6 +45,12 @@ public:
 	static float GetTextWidth(float cellHeight, std::string const& text, float cellAspectScale = 1.f);
 	AABB2 const GetUVsForLetter(char const& letter) const;
 	float GetFontAspect() const;
+
+#ifdef RENDERER_DX12
+	TextureDX12& GetTexture() const;
+#else
+	Texture& GetTexture() const;
+#endif
 
 protected:
 	float GetGlyphAspect(int glyphUnicode) const;

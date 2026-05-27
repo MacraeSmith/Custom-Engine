@@ -31,7 +31,7 @@ HRESULT D3DX12SerializeVersionedRootSignature(D3D12_VERSIONED_ROOT_SIGNATURE_DES
 
 			if (SUCCEEDED(hr))
 			{
-				for (UINT n = 0; n < desc_1_1.NumParameters; n++)
+				for (unsigned int n = 0; n < desc_1_1.NumParameters; n++)
 				{
 					__analysis_assume(ParametersSize == sizeof(D3D12_ROOT_PARAMETER) * desc_1_1.NumParameters);
 					pParameters_1_0[n].ParameterType = desc_1_1.pParameters[n].ParameterType;
@@ -65,7 +65,7 @@ HRESULT D3DX12SerializeVersionedRootSignature(D3D12_VERSIONED_ROOT_SIGNATURE_DES
 
 						if (SUCCEEDED(hr))
 						{
-							for (UINT x = 0; x < table_1_1.NumDescriptorRanges; x++)
+							for (unsigned int x = 0; x < table_1_1.NumDescriptorRanges; x++)
 							{
 								__analysis_assume(DescriptorRangesSize == sizeof(D3D12_DESCRIPTOR_RANGE) * table_1_1.NumDescriptorRanges);
 								pDescriptorRanges_1_0[x].BaseShaderRegister = table_1_1.pDescriptorRanges[x].BaseShaderRegister;
@@ -95,7 +95,7 @@ HRESULT D3DX12SerializeVersionedRootSignature(D3D12_VERSIONED_ROOT_SIGNATURE_DES
 
 			if (pParameters)
 			{
-				for (UINT n = 0; n < desc_1_1.NumParameters; n++)
+				for (unsigned int n = 0; n < desc_1_1.NumParameters; n++)
 				{
 					if (desc_1_1.pParameters[n].ParameterType == D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE)
 					{
@@ -197,14 +197,12 @@ UINT64 UpdateSubresources(ID3D12GraphicsCommandList* pCmdList, ID3D12Resource* p
 				D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX,
 				i + FirstSubresource
 			};
-			//CD3DX12_TEXTURE_COPY_LOCATION Dst(pDestinationResource, i + FirstSubresource);
 
 			D3D12_TEXTURE_COPY_LOCATION Src = {
 				pIntermediate,
 				D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT,
 				pLayouts[i]
 			};
-			//CD3DX12_TEXTURE_COPY_LOCATION Src(pIntermediate, pLayouts[i]);
 			pCmdList->CopyTextureRegion(&Dst, 0, 0, 0, &Src, nullptr);
 		}
 	}
@@ -300,4 +298,17 @@ void SetRootSignatureName(ID3D12RootSignature* out_rootSignature, std::string co
 size_t AlignUp(size_t value, size_t alignment)
 {
 	return (value + alignment - 1) & ~(alignment - 1);
+}
+
+int CalculateFullMipCount2D(int width, int height)
+{
+	int largestDimension = (width > height) ? width : height;
+	int mipCount = 1;
+	while (largestDimension > 1)
+	{
+		largestDimension = (largestDimension >> 1);
+		mipCount = (mipCount + 1);
+	}
+
+	return mipCount;
 }

@@ -4,6 +4,7 @@
 #include "Engine/Math/Vec4.hpp"
 #include "Engine/Math/MathUtils.hpp"
 #include "Engine/Core/EngineCommon.hpp"
+#include "Engine/Math/EulerAngles.hpp"
 
 const Mat44 Mat44::IFWRD_JLEFT_KUP_TO_DX11RENDER = Mat44(Mat44(Vec4(0.f, 0.f, 1.f, 0.f), Vec4(-1.f, 0.f, 0.f, 0.f), Vec4(0.f, 1.f, 0.f, 0.f), Vec4(0.f, 0.f, 0.f, 1.f)));
 const Mat44 Mat44::IDENTITY = Mat44(Vec4(1.f, 0.f, 0.f, 0.f), Vec4(0.f, 1.f, 0.f, 0.f), Vec4(0.f, 0.f, 1.f, 0.f), Vec4(0.f, 0.f, 0.f, 1.f));
@@ -105,6 +106,14 @@ Mat44::Mat44(float const* sixteenValuesBasisMajor)
 	m_values[Ty] = sixteenValuesBasisMajor[13];
 	m_values[Tz] = sixteenValuesBasisMajor[14];
 	m_values[Tw] = sixteenValuesBasisMajor[15];
+}
+
+Mat44::Mat44(Vec3 const& position, EulerAngles const& orientation, Vec3 const& scale)
+{
+	SetTranslation3D(position);
+	Mat44 rotation = orientation.GetAsMatrix_IFwd_JLeft_KUp();
+	Append(rotation);
+	AppendScaleNonUniform3D(scale);
 }
 
 Mat44 const Mat44::MakeTranslation2D(Vec2 const& translationXY)
@@ -349,6 +358,138 @@ Mat44 const Mat44::GetOrthonormalInverse() const
 	return Mat44(iBasis, jBasis, kBasis, translation);
 }
 
+Mat44 const Mat44::GetInverse() const
+{
+	float augmented[4][8] = {};
+
+	for (int rowIndex = 0; rowIndex < 4; ++rowIndex)
+	{
+		for (int columnIndex = 0; columnIndex < 4; ++columnIndex)
+		{
+			int sourceIndex = ((columnIndex * 4) + rowIndex);
+			augmented[rowIndex][columnIndex] = m_values[sourceIndex];
+		}
+
+		for (int identityColumnIndex = 0; identityColumnIndex < 4; ++identityColumnIndex)
+		{
+			augmented[rowIndex][identityColumnIndex + 4] = (rowIndex == identityColumnIndex) ? 1.0f : 0.0f;
+		}
+	}
+
+	for (int pivotColumnIndex = 0; pivotColumnIndex < 4; ++pivotColumnIndex)
+	{
+		int bestPivotRowIndex = pivotColumnIndex;
+		float bestPivotMagnitude = fabsf(augmented[pivotColumnIndex][pivotColumnIndex]);
+
+		for (int candidateRowIndex = (pivotColumnIndex + 1); candidateRowIndex < 4; ++candidateRowIndex)
+		{
+			float candidateMagnitude = fabsf(augmented[candidateRowIndex][pivotColumnIndex]);
+			if (candidateMagnitude > bestPivotMagnitude)
+			{
+				bestPivotMagnitude = candidateMagnitude;
+				bestPivotRowIndex = candidateRowIndex;
+			}
+		}
+
+		if (bestPivotMagnitude <= 0.000001f)
+		{
+			ERROR_AND_DIE("Mat44::GetInverse failed because the matrix is singular.");
+		}
+
+		if (bestPivotRowIndex != pivotColumnIndex)
+		{
+			for (int columnIndex = 0; columnIndex < 8; ++columnIndex)
+			{
+				float tempValue = augmented[pivotColumnIndex][columnIndex];
+				augmented[pivotColumnIndex][columnIndex] = augmented[bestPivotRowIndex][columnIndex];
+				augmented[bestPivotRowIndex][columnIndex] = tempValue;
+			}
+		}
+
+		float pivotValue = augmented[pivotColumnIndex][pivotColumnIndex];
+		float inversePivotValue = (1.0f / pivotValue);
+
+		for (int columnIndex = 0; columnIndex < 8; ++columnIndex)
+		{
+			augmented[pivotColumnIndex][columnIndex] *= inversePivotValue;
+		}
+
+		for (int rowIndex = 0; rowIndex < 4; ++rowIndex)
+		{
+			if (rowIndex == pivotColumnIndex)
+			{
+				continue;
+			}
+
+			float eliminationFactor = augmented[rowIndex][pivotColumnIndex];
+			if (eliminationFactor == 0.0f)
+			{
+				continue;
+			}
+
+			for (int columnIndex = 0; columnIndex < 8; ++columnIndex)
+			{
+				augmented[rowIndex][columnIndex] -= (eliminationFactor * augmented[pivotColumnIndex][columnIndex]);
+			}
+		}
+	}
+
+	Mat44 inverseMatrix;
+
+	for (int rowIndex = 0; rowIndex < 4; ++rowIndex)
+	{
+		for (int columnIndex = 0; columnIndex < 4; ++columnIndex)
+		{
+			int destinationIndex = ((columnIndex * 4) + rowIndex);
+			inverseMatrix.m_values[destinationIndex] = augmented[rowIndex][columnIndex + 4];
+		}
+	}
+
+	return inverseMatrix;
+}
+
+Mat44 const Mat44::GetTransposed3x3() const
+{
+	Mat44 result(m_values);
+
+	result.m_values[Ix] = m_values[Ix];
+	result.m_values[Iy] = m_values[Jx];
+	result.m_values[Iz] = m_values[Kx];
+
+	result.m_values[Jx] = m_values[Iy];
+	result.m_values[Jy] = m_values[Jy];
+	result.m_values[Jz] = m_values[Ky];
+
+	result.m_values[Kx] = m_values[Iz];
+	result.m_values[Ky] = m_values[Jz];
+	result.m_values[Kz] = m_values[Kz];
+
+	return result;
+};
+
+EulerAngles const Mat44::GetOrientation() const
+{
+	Vec3 i = GetIBasis3D(); // forward (x)
+	Vec3 j = GetJBasis3D(); // left (y)
+	Vec3 k = GetKBasis3D(); // up (z)
+
+	// Yaw: rotation around Z (turning left/right)
+	float yaw = atan2f(i.y, i.x);
+
+	// Pitch: rotation around Y (looking up/down)
+	float forwardLength = sqrtf(i.x * i.x + i.y * i.y);
+	float pitch = -atan2f(i.z, forwardLength);
+
+	// Roll: rotation around X (tilt)
+	float roll = atan2f(j.z, k.z);
+
+	EulerAngles result;
+	result.m_yawDegrees = ConvertRadiansToDegrees(yaw);
+	result.m_pitchDegrees = ConvertRadiansToDegrees(pitch);
+	result.m_rollDegrees = ConvertRadiansToDegrees(roll);
+	return result;
+}
+
 void Mat44::SetTranslation2D(Vec2 const& translationXY)
 {
 	m_values[Tx] = translationXY.x;
@@ -485,6 +626,18 @@ void Mat44::Orthonormalize_IFwd_JLeft_KUp()
 	Vec3 jBasis = CrossProduct3D(kBasis, iBasis);
 	//Add check and reversal here
 	kBasis =  CrossProduct3D(iBasis, jBasis);
+	iBasis.Normalize();
+	jBasis.Normalize();
+	kBasis.Normalize();
+	SetIJK3D(iBasis, jBasis, kBasis);
+}
+
+void Mat44::Orthonormalize_IFwd_JRight_KUp()
+{
+	Vec3 iBasis = GetIBasis3D();
+	Vec3 kBasis = GetKBasis3D();
+	Vec3 jBasis = CrossProduct3D(iBasis, kBasis);
+	kBasis = CrossProduct3D(jBasis, iBasis);
 	iBasis.Normalize();
 	jBasis.Normalize();
 	kBasis.Normalize();
@@ -703,4 +856,20 @@ void Mat44::AppendScaleNonUniform3D(Vec3 const& nonUniformScaleXYZ)
 	m_values[Ky] = (oldMatrix.m_values[Ky] * nonUniformScaleXYZ.z);
 	m_values[Kz] = (oldMatrix.m_values[Kz] * nonUniformScaleXYZ.z);
 	m_values[Kw] = (oldMatrix.m_values[Kw] * nonUniformScaleXYZ.z);
+}
+
+bool Mat44::operator==(Mat44 const& compare) const
+{
+	return (m_values[Ix] == compare.m_values[Ix] && m_values[Iy] == compare.m_values[Iy] && m_values[Iz] == compare.m_values[Iz] && m_values[Iw] == compare.m_values[Iw]
+		&& m_values[Jx] == compare.m_values[Jx] && m_values[Jy] == compare.m_values[Jy] && m_values[Jz] == compare.m_values[Jz] && m_values[Jw] == compare.m_values[Jw]
+		&& m_values[Kx] == compare.m_values[Kx] && m_values[Ky] == compare.m_values[Ky] && m_values[Kz] == compare.m_values[Kz] && m_values[Kw] == compare.m_values[Kw]
+		&& m_values[Tx] == compare.m_values[Tx] && m_values[Ty] == compare.m_values[Ty] && m_values[Tz] == compare.m_values[Tz] && m_values[Tw] == compare.m_values[Tw]);
+}
+
+bool Mat44::operator!=(Mat44 const& compare) const
+{
+	return (m_values[Ix] != compare.m_values[Ix] || m_values[Iy] != compare.m_values[Iy] || m_values[Iz] != compare.m_values[Iz] || m_values[Iw] != compare.m_values[Iw]
+		|| m_values[Jx] != compare.m_values[Jx] || m_values[Jy] != compare.m_values[Jy] || m_values[Jz] != compare.m_values[Jz] || m_values[Jw] != compare.m_values[Jw]
+		|| m_values[Kx] != compare.m_values[Kx] || m_values[Ky] != compare.m_values[Ky] && m_values[Kz] != compare.m_values[Kz] || m_values[Kw] != compare.m_values[Kw]
+		|| m_values[Tx] != compare.m_values[Tx] || m_values[Ty] != compare.m_values[Ty] || m_values[Tz] != compare.m_values[Tz] || m_values[Tw] != compare.m_values[Tw]);
 }

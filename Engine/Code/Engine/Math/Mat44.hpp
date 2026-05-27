@@ -1,6 +1,7 @@
 #pragma once
+#include "Engine/Math/EulerAngles.hpp"
+#include "Engine/Math/Vec3.hpp"
 struct Vec2;
-struct Vec3;
 struct Vec4;
 
 struct Mat44
@@ -21,6 +22,7 @@ public:
 	explicit Mat44(Vec2 const& iBasis2D, Vec2 const& jBasis2D, Vec2 const& translation2D);
 	explicit Mat44(Vec3 const& iBasis3D, Vec3 const& jBasis3D, Vec3 const& kBasis3D, Vec3 const& translation3D);
 	explicit Mat44(Vec4 const& iBasis4D, Vec4 const& jBasis4D, Vec4 const& kBasis4D, Vec4 const& translation4D);
+	explicit Mat44(Vec3 const& position, EulerAngles const& orientation, Vec3 const& scale = Vec3::ONE);
 	explicit Mat44(float const* sixteenValuesBasisMajor);
 
 	static Mat44 const	MakeTranslation2D(Vec2 const& translationXY);
@@ -55,6 +57,9 @@ public:
 	Vec4 const		GetKBasis4D() const;
 	Vec4 const		GetTranslation4D() const;
 	Mat44 const		GetOrthonormalInverse() const;
+	Mat44 const		GetInverse() const;
+	Mat44 const		GetTransposed3x3() const;
+	EulerAngles const GetOrientation() const;
 
 	void	SetTranslation2D(Vec2 const& translationXY); //sets translationZ = 0, translationW = 1
 	void	SetTranslation3D(Vec3 const& translationXYZ); //sets translationW =1
@@ -65,6 +70,7 @@ public:
 	void	SetIJKT4D(Vec4 const& iBasis4D, Vec4 const& jBasis4D, Vec4 const& kBasis4D, Vec4 const& translation4D); //All 16 values provided
 	void	Transpose();
 	void	Orthonormalize_IFwd_JLeft_KUp();
+	void	Orthonormalize_IFwd_JRight_KUp();
 
 	void Append(Mat44 const& appendThis);			//multiply  on right in column notation / on left in row notation
 	void AppendZRotation(float degreesRotationAboutZ);				//same as appending (*= in column notation) a z-rotation matrix
@@ -76,6 +82,9 @@ public:
 	void AppendScaleUniform3D(float uniformScaleXYZ);				//T remains unaffected
 	void AppendScaleNonUniform2D(Vec2 const& nonUniformScaleXY);	//K and T bases unaffected
 	void AppendScaleNonUniform3D(Vec3 const& nonUniformScaleXYZ);	//T remains unaffected
+
+	bool operator==(Mat44 const& compare)const;
+	bool operator!=(Mat44 const& compare)const;
 
 
 };

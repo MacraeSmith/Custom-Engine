@@ -3,14 +3,17 @@
 #include "Engine/Math/Vec2.hpp"
 #include "Engine/Core/StringUtils.hpp"
 #include "Engine/Math/EulerAngles.hpp"
+#include "Engine/Math/IntVec3.hpp"
+#include "Engine/Math/RandomNumberGenerator.hpp"
+#include "Engine/Math/Mat44.hpp"
 #include "math.h"
 
 Vec3 const Vec3::ZERO = Vec3(0.f, 0.f, 0.f);
 Vec3 const Vec3::ONE = Vec3(1.f, 1.f, 1.f);
-Vec3 const Vec3::NORTH = Vec3(1.f, 0.f, 0.f);
-Vec3 const Vec3::SOUTH = Vec3(-1.f, 0.f, 0.f);
-Vec3 const Vec3::EAST = Vec3(0.f, 1.f, 0.f);
-Vec3 const Vec3::WEST = Vec3(0.f, -1.f, 0.f);
+Vec3 const Vec3::NORTH = Vec3(0.f, 1.f, 0.f);
+Vec3 const Vec3::SOUTH = Vec3(0.f, -1.f, 0.f);
+Vec3 const Vec3::EAST = Vec3(1.f, 0.f, 0.f);
+Vec3 const Vec3::WEST = Vec3(-1.f, 0.f, 0.f);
 Vec3 const Vec3::UP = Vec3(0.f, 0.f, 1.f);
 Vec3 const Vec3::DOWN = Vec3(0.f, 0.f, -1.f);
 Vec3 const Vec3::LEFT = Vec3(0.f, 1.f, 0.f);
@@ -40,6 +43,19 @@ Vec3::Vec3(Vec2 const& initialXY, float initialZ)
 {
 }
 
+Vec3::Vec3(int initialX, int initialY, int initialZ)
+	: x((float)initialX)
+	, y((float)initialY)
+	, z((float)initialZ)
+{
+}
+
+Vec3::Vec3(IntVec3 const& copyFrom)
+	: x((float)copyFrom.x)
+	, y((float)copyFrom.y)
+	, z((float)copyFrom.z)
+{
+}
 
 //Accessors
 //-----------------------------------------------------------------------------------------------
@@ -71,6 +87,42 @@ Vec3 const Vec3::MakeFromPolarDegrees(float yawDegrees, float pitchDegrees, floa
 	newPoint.z = -length * sinPitch;
 	return newPoint;
 }
+
+std::vector<Vec3> const Vec3::GetPositionInCircleAround(Vec3 const& centerPoint, Vec3 const& normal, float radius, int numPositionsToGet)
+{
+	std::vector<Vec3> circlePositions;
+	circlePositions.reserve(numPositionsToGet);
+
+	Vec3 referenceDirection(0.0f, 0.0f, 1.0f);
+	if (fabsf(DotProduct3D(normal, referenceDirection)) > 0.99f)
+	{
+		referenceDirection = Vec3(1.0f, 0.0f, 0.0f);
+	}
+
+	Vec3 projectedReference = referenceDirection - (normal * DotProduct3D(referenceDirection, normal));
+	Vec3 circleAxisX = projectedReference.GetNormalized();
+	Vec3 circleAxisY = CrossProduct3D(normal, circleAxisX).GetNormalized();
+
+
+	const float twoPi = 6.2831853071795864769f;
+
+	for (int positionIndex = 0; positionIndex < numPositionsToGet; positionIndex++)
+	{
+		float angleFraction = ((float)positionIndex / (float)numPositionsToGet);
+		float angleRadians = (angleFraction * twoPi);
+
+		float cosAngle = cosf(angleRadians);
+		float sinAngle = sinf(angleRadians);
+
+		Vec3 offset = (circleAxisX * (cosAngle * radius)) + (circleAxisY * (sinAngle * radius));
+		Vec3 position = centerPoint + offset;
+
+		circlePositions.push_back(position);
+	}
+	
+	return circlePositions;
+}
+
 
 float Vec3::GetLength() const
 {
@@ -150,12 +202,20 @@ Vec2 const Vec3::GetXY() const
 	return Vec2(x, y);
 }
 
+std::string Vec3::GetAsText(int numDecimals) const
+{
+	numDecimals = GetClampedInt(numDecimals, 0, 10);
+	char format[64];
+	std::snprintf(format, sizeof(format), "%%.%df, %%.%df, %%.%df", numDecimals, numDecimals, numDecimals);
+	return Stringf(format, x, y, z);
+}
+
 //Mutators
 //-----------------------------------------------------------------------------------------------
 
-void Vec3::SetFromText(char const* text)
+void Vec3::SetFromText(char const* text, char delimiterToSplitOn)
 {
-	Strings numsFromText = SplitStringOnDelimiter(text, ',');
+	Strings numsFromText = SplitStringOnDelimiter(text, delimiterToSplitOn);
 	x = (float)(atof(numsFromText[0].c_str()));
 	y = (float)(atof(numsFromText[1].c_str()));
 	z = (float)(atof(numsFromText[2].c_str()));

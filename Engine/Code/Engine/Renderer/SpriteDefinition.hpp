@@ -1,8 +1,15 @@
 #pragma once
 #include "Engine/Math/Vec2.hpp"
+#include "Game/EngineBuildPreferences.hpp"
+
+#ifdef RENDERER_DX12
+class TextureDX12;
+#else
+class Texture;
+
+#endif // RENDERER_DX12
 
 class SpriteSheet;
-class Texture;
 struct AABB2;
 
 class SpriteDefinition
@@ -12,8 +19,13 @@ public:
 	void					GetUVS(Vec2& out_uvAtMins, Vec2& out_uvAtMaxs) const;
 	AABB2					GetUVS() const;
 	SpriteSheet const&		GetSpriteSheet() const;
-	Texture&				GetTexture() const;
 	float					GetAspect() const;
+
+#ifdef RENDERER_DX12
+	TextureDX12&			GetTexture() const;
+#else
+	Texture&				GetTexture() const;
+#endif // RENDERER_DX12
 
 protected:
 	SpriteSheet const& m_spriteSheet;

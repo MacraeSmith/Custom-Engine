@@ -49,8 +49,7 @@ void RootSignatureDX12::Destroy()
 
 void RootSignatureDX12::SetRootSignatureDesc(const D3D12_ROOT_SIGNATURE_DESC1& rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION rootSignatureVersion)
 {
-	// Make sure any previously allocated root signature description is cleaned 
-	// up first.
+	// Make sure any previously allocated root signature description is cleaned up first.
 	Destroy();
 
 	ID3D12Device* device = m_renderer->GetDevice();
@@ -93,7 +92,15 @@ void RootSignatureDX12::SetRootSignatureDesc(const D3D12_ROOT_SIGNATURE_DESC1& r
 			// Count the number of descriptors in the descriptor table.
 			for (unsigned int j = 0; j < numDescriptorRanges; ++j)
 			{
-				m_numDescriptorsPerTable[i] += pDescriptorRanges[j].NumDescriptors;
+				if (pDescriptorRanges[j].NumDescriptors >= MAX_NUM_BINDLESS_TEXTURES)
+				{
+					m_numDescriptorsPerTable[i] = 0;//MAX_NUM_BINDLESS_TEXTURES;
+				}
+
+				else
+				{
+					m_numDescriptorsPerTable[i] += pDescriptorRanges[j].NumDescriptors;
+				}
 			}
 		}
 	}
@@ -141,7 +148,7 @@ void RootSignatureDX12::SetRootSignatureDesc(const D3D12_ROOT_SIGNATURE_DESC1& r
 
 	if (errorBlob != NULL)
 	{
-		errorBlob->Release();
+		DX_SAFE_RELEASE(errorBlob);
 	}
 
 	// Create the root signature.
@@ -157,10 +164,10 @@ void RootSignatureDX12::SetRootSignatureDesc(const D3D12_ROOT_SIGNATURE_DESC1& r
 
 	if (errorBlob != NULL)
 	{
-		errorBlob->Release();
+		DX_SAFE_RELEASE(errorBlob);
 	}
 
-	rootSignatureBlob->Release();
+	DX_SAFE_RELEASE(rootSignatureBlob);
 }
 
 uint32_t RootSignatureDX12::GetDescriptorTableBitMask(D3D12_DESCRIPTOR_HEAP_TYPE descriptorHeapType) const

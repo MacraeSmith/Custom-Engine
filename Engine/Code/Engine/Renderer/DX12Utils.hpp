@@ -81,4 +81,6 @@ void SetRootSignatureName(ID3D12RootSignature* out_rootSignature, std::string co
 
 size_t AlignUp(size_t value, size_t alignment);
 
+int	CalculateFullMipCount2D(int width, int height);
+
 

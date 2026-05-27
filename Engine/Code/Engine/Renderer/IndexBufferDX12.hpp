@@ -14,15 +14,17 @@ public:
 	virtual D3D12_CPU_DESCRIPTOR_HANDLE GetShaderResourceView(D3D12_SHADER_RESOURCE_VIEW_DESC const* srvDesc = nullptr) const override;
 	virtual D3D12_CPU_DESCRIPTOR_HANDLE GetUnorderedAccessView(D3D12_UNORDERED_ACCESS_VIEW_DESC const* uavDesc = nullptr) const override;
 
-	unsigned int GetNumIndexes() const {return m_numIndexes;}
-	DXGI_FORMAT GetIndexFormat() const{return m_indexFormat;}
+	unsigned int			GetNumIndexes() const {return m_numIndexes;}
+	unsigned int			GetStride() const {return m_stride;}
+	size_t					GetSizeInBytes() const {return m_stride * m_numIndexes;}
+	DXGI_FORMAT				GetIndexFormat() const{return m_indexFormat;}
 	D3D12_INDEX_BUFFER_VIEW GetIndexBufferView() const{return m_indexBufferView;}
 
 public:
 
-	DXGI_FORMAT m_indexFormat;
+	DXGI_FORMAT				m_indexFormat;
 	D3D12_INDEX_BUFFER_VIEW m_indexBufferView = {};
-	unsigned int m_stride = 0;
-	unsigned int m_numIndexes = 0;
+	unsigned int			m_stride = 0;
+	unsigned int			m_numIndexes = 0;
 };
 

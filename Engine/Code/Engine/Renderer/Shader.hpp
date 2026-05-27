@@ -10,6 +10,7 @@ struct ShaderConfig
 	std::string m_name;
 	std::string m_vertexEntryPoint = "VertexMain";
 	std::string m_pixelEntryPoint = "PixelMain";
+	bool m_computeShader = false;
 };
 
 class Shader

@@ -31,4 +31,3 @@ double GetCurrentTimeSeconds()
 	return currentSeconds;
 }
 
-

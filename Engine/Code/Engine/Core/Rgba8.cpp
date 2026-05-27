@@ -17,6 +17,7 @@ Rgba8 const Rgba8::BLACK = Rgba8(0, 0, 0);
 Rgba8 const Rgba8::TRANSLUCENT_BLACK = Rgba8(0, 0, 0, 125);
 Rgba8 const Rgba8::TRANSLUCENT_GREY = Rgba8(125, 125, 125, 125);
 Rgba8 const Rgba8::DEFAULT_NORMAL_MAP = Rgba8(127, 127, 255);
+Rgba8 const Rgba8::DEFAULT_SPEC_GLOSS_EMIT_MAP = Rgba8(127, 127, 0);
 
 Rgba8::Rgba8(const Rgba8& copyFrom)
 	: r(copyFrom.r)
@@ -42,13 +43,18 @@ void Rgba8::GetAsFloats(float* colorAsFloats) const
 	colorAsFloats[3] = NormalizeByte(a);
 }
 
+std::string Rgba8::GetAsText() const
+{
+	return Stringf("%u,%u,%u,%u", r, g, b, a);
+}
+
 
 bool Rgba8::IsEqualIgnoringAlpha(Rgba8 const& compareColor)
 {
 	return r == compareColor.r && g == compareColor.g && b == compareColor.b;
 }
 
-Rgba8 Rgba8::GetAsDenormalizedColor(float* colorAsFloats)
+Rgba8 Rgba8::GetAsDenormalizedColor(float const* colorAsFloats)
 {
 	Rgba8 newColor;
 	newColor.r = DenormalizeByte(colorAsFloats[0]);
@@ -97,6 +103,16 @@ Rgba8 Rgba8::ColorLerp(Rgba8 const& start, Rgba8 const& end, float fraction)
 	return Rgba8(DenormalizeByte(rFloat), DenormalizeByte(gFloat), DenormalizeByte(bFloat), DenormalizeByte(aFloat));
 }
 
+Rgba8 Rgba8::Average4(Rgba8 a, Rgba8 b, Rgba8 c, Rgba8 d)
+{
+	Rgba8 out;
+	out.r = (unsigned char)(((int)a.r + (int)b.r + (int)c.r + (int)d.r) / 4);
+	out.g = (unsigned char)(((int)a.g + (int)b.g + (int)c.g + (int)d.g) / 4);
+	out.b = (unsigned char)(((int)a.b + (int)b.b + (int)c.b + (int)d.b) / 4);
+	out.a = (unsigned char)(((int)a.a + (int)b.a + (int)c.a + (int)d.a) / 4);
+	return out;
+}
+
 bool Rgba8::operator==(Rgba8 const& compareColor) const
 {
 	return r == compareColor.r && g == compareColor.g && b == compareColor.b && a == compareColor.a;
@@ -141,7 +157,7 @@ void Rgba8::operator-=(Rgba8 const& colorToSubtract)
 	a = DenormalizeByte(aFloat);
 }
 
-Rgba8 Rgba8::operator-(Rgba8 const& colorToSubtract)
+Rgba8 Rgba8::operator-(Rgba8 const& colorToSubtract) const
 {
 	float rFloat = GetClampedZeroToOne(NormalizeByte(r) - NormalizeByte(colorToSubtract.r));
 	float gFloat = GetClampedZeroToOne(NormalizeByte(g) - NormalizeByte(colorToSubtract.g));
@@ -155,6 +171,30 @@ Rgba8 Rgba8::operator-(Rgba8 const& colorToSubtract)
 	newColor.a = DenormalizeByte(aFloat);
 
 	return newColor;
+}
+
+Rgba8 Rgba8::operator*(Rgba8 const& colorToMultiply) const
+{
+	Rgba8 newColor;
+	newColor.r = r * colorToMultiply.r;
+	newColor.g = g * colorToMultiply.g;
+	newColor.b = b * colorToMultiply.b;
+	newColor.a = a * colorToMultiply.a;
+
+	return newColor;
+}
+
+void Rgba8::operator*=(float scale)
+{
+	float rFloat = NormalizeByte(r) * scale;
+	float gFloat = NormalizeByte(g) * scale;
+	float bFloat = NormalizeByte(b) * scale;
+	float aFloat = NormalizeByte(a) * scale;
+
+	r = DenormalizeByte(rFloat);
+	g = DenormalizeByte(gFloat);
+	b = DenormalizeByte(bFloat);
+	a = DenormalizeByte(aFloat);
 }
 
 

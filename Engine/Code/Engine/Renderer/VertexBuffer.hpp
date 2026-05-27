@@ -19,6 +19,7 @@ public:
 
 	unsigned int GetSize();
 	unsigned int GetStride();
+	unsigned int GetCount();
 
 private:
 	ID3D11Device* m_device = nullptr;

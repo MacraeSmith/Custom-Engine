@@ -43,6 +43,16 @@ float TileHeatMap::GetValue(int index) const
 	return m_values[index];
 }
 
+float TileHeatMap::GetValue(IntVec2 const& coords) const
+{
+	return GetValue(GetIndexFromCoords(coords));
+}
+
+int TileHeatMap::GetIndexFromCoords(IntVec2 const& coords) const
+{
+	return (coords.y + m_dimensions.x) + coords.x;
+}
+
 void TileHeatMap::AddValue(int index, float value)
 {
 	m_values[index] += value;

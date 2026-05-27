@@ -34,6 +34,12 @@ Vec2::Vec2( float initialX, float initialY )
 {
 }
 
+Vec2::Vec2(int initialX, int initialY)
+	:x((float)initialX)
+	,y((float)initialY)
+{
+}
+
 //Static Methods
 //-----------------------------------------------------------------------------------------------
 Vec2 const Vec2::MakeFromPolarRadians(float orientationRadians, float length)
@@ -60,6 +66,21 @@ float const Vec2::GetOrientationRadians(float inputX, float inputY)
 float const Vec2::GetOrientationDegrees(float inputX, float inputY)
 {
 	return Atan2Degrees(inputY, inputX);
+}
+
+float const Vec2::GetPolarAngleAboutPoint(Vec2 const& point, Vec2 const& origin)
+{
+	Vec2 delta = (point - origin);
+	return atan2f(delta.y, delta.x);
+}
+
+bool Vec2::ArePointsColinear(Vec2 const& prev, Vec2 const& curr, Vec2 const& next)
+{
+	Vec2 const v1 = (curr - prev);
+	Vec2 const v2 = (next - prev);
+
+	float const cross = CrossProduct2D(v1, v2);
+	return (cross >= 0.f) && (cross <= 0.f);
 }
 
 
@@ -148,13 +169,21 @@ Vec2 const Vec2::GetReflected(Vec2 const& normalOfSurfaceToReflectOffOf) const
 	return vectorAlongPerpendicular - vectorAlongNormal;
 }
 
+std::string Vec2::GetAsText(int numDecimals) const
+{
+	numDecimals = GetClampedInt(numDecimals, 0, 10);
+	char format[64];
+	std::snprintf(format, sizeof(format), "%%.%df, %%.%df", numDecimals, numDecimals);
+	return Stringf(format, x, y);
+}
+
 
 //Mutators (non-const methods)
 //-----------------------------------------------------------------------------------------------
 
-void Vec2::SetFromText(char const* text)
+void Vec2::SetFromText(char const* text, char delimiterToSplitOn)
 {
-	Strings numsFromText = SplitStringOnDelimiter(text, ',');
+	Strings numsFromText = SplitStringOnDelimiter(text, delimiterToSplitOn);
 	x = (float)(atof(numsFromText[0].c_str()));
 	y = (float)(atof(numsFromText[1].c_str()));
 }

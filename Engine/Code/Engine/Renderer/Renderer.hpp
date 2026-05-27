@@ -1,17 +1,22 @@
+#pragma once
 #include "Engine/Core/Rgba8.hpp"
 #include "Engine/Renderer/Camera.hpp"
 #include "Engine/Math/Mat44.hpp"
 #include "Game/EngineBuildPreferences.hpp"
+#include "Engine/Core/VertexUtils.hpp"
 
 #include <vector>
 #include <string>
 
-struct Vertex_PCU;
 class Window;
 struct IntVec2;
-class Texture;
 class BitmapFont;
 class Image;
+class StaticMesh;
+struct StaticMeshConfig;
+class Texture;
+class TextureDX12;
+
 
 #define DX_SAFE_RELEASE(dxObject)	\
 {									\
@@ -21,11 +26,6 @@ class Image;
 			(dxObject) = nullptr;	\
 		}							\
 }
-
-class Shader;
-class VertexBuffer;
-class ConstantBuffer;
-class IndexBuffer;
 
 enum class RendererType : int
 {
@@ -37,6 +37,7 @@ struct RendererConfig
 {
 	Window* m_window = nullptr;
 	RendererType m_renderingType = RendererType::DIRECTX_11;
+	bool m_useImGUI = false;
 };
 
 
@@ -44,6 +45,7 @@ enum class VertexType : int
 {
 	VERTEX_PCU,
 	VERTEX_PCUTBN,
+	VERTEX_TERRAIN,
 	COUNT
 };
 
@@ -64,6 +66,7 @@ enum class SamplerMode : int
 {
 	POINT_CLAMP,
 	BILINEAR_WRAP,
+	ANISOTROPIC_WRAP,
 	COUNT
 };
 
@@ -71,6 +74,7 @@ enum class RasterizerMode : int
 {
 	SOLID_CULL_NONE,
 	SOLID_CULL_BACK,
+	SOLID_CULL_FRONT,
 	WIREFRAME_CULL_NONE,
 	WIREFRAME_CULL_BACK,
 	WIREFRAME_CULL_FRONT,
@@ -114,7 +118,7 @@ struct PerFrameConstants
 	float Padding = 0.f;
 };
 
-static const int k_perFrameConstantsSlot = 1;
+static const int s_perFrameConstantsSlot = 1;
 
 struct CameraConstants
 {
@@ -125,7 +129,7 @@ struct CameraConstants
 	float Padding = 0.f;
 };
 
-static const int k_cameraConstantsSlot = 2;
+static const int s_cameraConstantsSlot = 2;
 
 struct ModelConstants
 {
@@ -133,7 +137,7 @@ struct ModelConstants
 	float m_modelColor[4];
 };
 
-static const int k_modelConstantsSlot = 3;
+static const int s_modelConstantsSlot = 3;
 
 struct LightConstants
 {
@@ -150,7 +154,9 @@ struct LightConstants
 	LightData m_lights[MAX_NUM_LIGHTS];
 };
 
-static const int k_lightConstantsSlot = 4;
+static const int s_lightConstantsSlot = 4;
+
+constexpr int NUM_TEXTURE_SLOTS = 16;
 
 struct ColorAdjustmentConstants
 {
@@ -162,11 +168,22 @@ struct ColorAdjustmentConstants
 
 };
 
-static const int k_colorAdjustmentConstantsSlot = 8;
+static const int s_colorAdjustmentConstantsSlot = 8;
 
-constexpr int NUM_TEXTURE_DATA = 16;
-static const int k_defaultDiffuseSlot = 0;
-static const int k_defaultNormalsSlot = 1;
+struct RenderTarget
+{
+#ifdef RENDERER_DX12
+	TextureDX12 const* m_color = nullptr;
+	TextureDX12 const* m_depth = nullptr;
+	TextureDX12 const* m_mask = nullptr;
+#else
+	Texture const* m_color = nullptr;
+	Texture const* m_depth = nullptr;
+#endif // RENDERER_DX12
+
+};
+
+constexpr int NUM_COPY_RENDER_TARGETS = 50;
 
 class Renderer
 {
@@ -180,19 +197,22 @@ public:
 	virtual void Shutdown() = 0;
 
 	virtual void ClearScreen(const Rgba8& clearColor) = 0;
+	virtual void ClearDepth() = 0;
 	virtual void BeginCamera(const Camera& camera) = 0;
 	virtual void EndCamera(const Camera& camera) = 0;
 
-	virtual void BeginRendererEvent(char const* eventName) = 0;
-	virtual void EndRendererEvent() = 0;
+	virtual void BeginRendererEvent(char const* eventName) const = 0;
+	virtual void EndRendererEvent() const = 0;
 
 	//Creation
-	virtual Texture* CreateOrGetTextureFromFile(char const* imageFilePath) = 0;
-	virtual BitmapFont* CreatOrGetBitMapFontFromFile(char const* bitmapFontFilePathWithNoExtension) = 0;
 
+	virtual BitmapFont* CreateOrGetBitMapFontFromFile(char const* bitmapFontFilePathWithNoExtension) = 0;
 
 	//Binds
-	void BindTexture(Texture* texture, int slot = 0);
+	void SetBlendMode(BlendMode blendMode);
+	void SetSamplerMode(SamplerMode samplerMode, int slot = 0);
+	void SetRasterizerMode(RasterizerMode rasterizerMode);
+	void SetDepthMode(DepthMode depthMode);
 
 	virtual void SetModelConstants(Mat44 const& modelToWorldTransform = Mat44(), Rgba8 const& modelColor = Rgba8::WHITE) = 0;
 	virtual void SetLightConstants(Vec3 const& sunDirection, float sunIntensity, float ambientIntensity, Rgba8 const& sunColor = Rgba8::WHITE) = 0;
@@ -200,19 +220,38 @@ public:
 	virtual void SetColorAdjustmentConstants(ColorAdjustmentConstants const& colorAdjustmentConstants) = 0;
 	virtual void SetPerFrameConstants(PerFrameConstants const& perFrameConstants) = 0;
 
-	std::string GetNameForBlendMode(BlendMode const& blendMode) const;
-	std::string GetNameForDepthMode(DepthMode const& depthMode) const;
-	std::string GetNameForRasterizerMode(RasterizerMode const& rasterizerMode) const;
+	static std::string GetNameForBlendMode(BlendMode const& blendMode);
+	static std::string GetNameForDepthMode(DepthMode const& depthMode);
+	static std::string GetNameForRasterizerMode(RasterizerMode const& rasterizerMode);
+
+	static BlendMode GetBlendModeFromName(std::string const& name);
+
+	StaticMesh*		CreateOrGetStaticMeshFromFile(std::string const& filePath);
+	StaticMesh*		CreateOrGetStaticMeshFromVerts(Verts const& verts, StaticMeshConfig const& config);
+	StaticMesh*		CreateOrGetStaticMeshFromVertTBNs(VertTBNs const& verts, IndexList const& indexes, StaticMeshConfig const& config);
+
+protected:
+	BitmapFont* GetBitMapFontForFileName(char const* bitmapFontFilePathWithNoExtension) const;
+
 
 private:
-
-
-private:
-	//std::vector<Texture*> m_loadedTextures;
-	//std::vector<BitmapFont*> m_loadedFonts;
 
 protected:
 	RendererConfig m_config;
+	std::vector<BitmapFont*> m_loadedFonts;
+
+	BlendMode		m_desiredBlendMode = BlendMode::ALPHA;
+	SamplerMode		m_desiredSamplerModeBySlot[NUM_TEXTURE_SLOTS] = {};
+	RasterizerMode	m_desiredRasterizerMode = RasterizerMode::SOLID_CULL_BACK;
+	DepthMode		m_desiredDepthMode = DepthMode::READ_WRITE_LESS_EQUAL;
+
+	RenderTarget m_renderTargetCopies[NUM_COPY_RENDER_TARGETS] = {};
+	int m_currentRenderTargetCopyIndex = 0;
+
+	RenderTarget m_renderTarget = {};
+	bool m_activeRenderTarget = true;
+
+	std::vector<StaticMesh*> m_loadedStaticMeshes;
 
 
 #if defined(ENGINE_DEBUG_RENDERER)

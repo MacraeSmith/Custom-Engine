@@ -21,6 +21,7 @@ public:
 	float GetTimeScale() const;
 
 	void SetMinDeltaSeconds(float deltaSeconds);
+	void SetMaxFrameRate(float frameRate);
 
 	float GetDeltaSeconds() const;
 	float GetTotalSeconds() const;

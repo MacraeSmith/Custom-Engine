@@ -157,16 +157,4 @@ This engine was developed to deepen understanding of:
 * Tool Development
 * Low-Level C++ Programming
 
----
-
-## Future Development
-
-Planned areas of continued development include:
-
-* Additional rendering techniques
-* Expanded editor tooling
-* Improved asset pipeline support
-* Enhanced networking systems
-* Further DirectX 12 optimization
-* Additional gameplay framework features
 
